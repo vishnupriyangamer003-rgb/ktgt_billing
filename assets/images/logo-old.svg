@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="ktgSphere" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5bc4f1"/>
+      <stop offset="45%" stop-color="#1e88e5"/>
+      <stop offset="100%" stop-color="#0c4d92"/>
+    </linearGradient>
+    <clipPath id="ktgClip">
+      <circle cx="60" cy="60" r="56"/>
+    </clipPath>
+  </defs>
+
+  <circle cx="60" cy="60" r="56" fill="url(#ktgSphere)"/>
+
+  <g clip-path="url(#ktgClip)" stroke="#eaf6ff" stroke-width="1.1" fill="none" opacity=".8">
+    <!-- latitude lines -->
+    <ellipse cx="60" cy="60" rx="56" ry="10"/>
+    <ellipse cx="60" cy="60" rx="56" ry="26"/>
+    <ellipse cx="60" cy="60" rx="56" ry="42"/>
+    <line x1="4" y1="60" x2="116" y2="60"/>
+    <!-- longitude lines -->
+    <ellipse cx="60" cy="60" rx="10" ry="56"/>
+    <ellipse cx="60" cy="60" rx="26" ry="56"/>
+    <ellipse cx="60" cy="60" rx="42" ry="56"/>
+    <line x1="60" y1="4" x2="60" y2="116"/>
+  </g>
+
+  <circle cx="60" cy="60" r="56" fill="none" stroke="#083867" stroke-width="2"/>
+
+  <text x="60" y="72" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-weight="700" font-size="34" fill="#ffffff" stroke="#083867" stroke-width="0.6">KTG</text>
+</svg>
