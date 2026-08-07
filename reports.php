@@ -103,18 +103,19 @@ function renderResults(){
 
   if (currentType === 'invoice' || currentType === 'gst' || currentType === 'nongst') {
     head = '<th>Invoice #</th><th>Customer</th><th>Date</th><th>Due</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th>';
-    const filtered = KTG.DATA.invoices.filter(i => inRange(i.date, from, to) && (!cust || i.customer === cust) && (!extra || i.status === extra));
+    const filtered = KTG.DATA.invoices.filter(i => inRange(i.date, from, to) && (!cust || i.customer === cust) && (!extra || i.status === extra)
+      && (currentType === 'invoice' || i.gstType === currentType));
     rows = filtered.map(i => `<tr><td class="cell-title">${i.id}</td><td>${i.customer}</td><td class="fs-13">${i.date}</td><td class="fs-13">${i.due}</td><td class="fw-600">${KTG.money(i.amount)}</td><td class="text-success fw-600">${KTG.money(i.paid)}</td><td class="fw-600 ${i.amount-i.paid>0?'text-danger':''}">${KTG.money(i.amount-i.paid)}</td><td><span class="chip chip-${i.status}">${i.status}</span></td></tr>`);
     document.getElementById('resultsCount').textContent = filtered.length + ' entries';
     const totalAmt = filtered.reduce((s,i) => s+i.amount, 0), totalPaid = filtered.reduce((s,i) => s+i.paid, 0);
     foot = `<td colspan="4" class="text-end">Total</td><td>${KTG.money(totalAmt)}</td><td>${KTG.money(totalPaid)}</td><td>${KTG.money(totalAmt-totalPaid)}</td><td></td>`;
   } else if (currentType === 'quotation') {
-    head = '<th>Quotation #</th><th>Customer</th><th>Project</th><th>Date</th><th>Expiry</th><th>Amount</th><th>Status</th>';
+    head = '<th>Quotation #</th><th>Customer</th><th>Date</th><th>Expiry</th><th>Amount</th><th>Status</th>';
     const filtered = KTG.DATA.quotations.filter(q => inRange(q.date, from, to) && (!cust || q.customer === cust) && (!extra || q.status === extra));
-    rows = filtered.map(q => `<tr><td class="cell-title">${q.id}</td><td>${q.customer}</td><td class="fs-13">${q.project}</td><td class="fs-13">${q.date}</td><td class="fs-13">${q.expiry}</td><td class="fw-600">${KTG.money(q.amount)}</td><td><span class="chip chip-${q.status}">${q.status}</span></td></tr>`);
+    rows = filtered.map(q => `<tr><td class="cell-title">${q.id}</td><td>${q.customer}</td><td class="fs-13">${q.date}</td><td class="fs-13">${q.expiry}</td><td class="fw-600">${KTG.money(q.amount)}</td><td><span class="chip chip-${q.status}">${q.status}</span></td></tr>`);
     document.getElementById('resultsCount').textContent = filtered.length + ' entries';
     const totalAmt = filtered.reduce((s,q) => s+q.amount, 0);
-    foot = `<td colspan="5" class="text-end">Total</td><td>${KTG.money(totalAmt)}</td><td></td>`;
+    foot = `<td colspan="4" class="text-end">Total</td><td>${KTG.money(totalAmt)}</td><td></td>`;
   } else if (currentType === 'payment') {
     head = '<th>Payment ID</th><th>Customer</th><th>Date</th><th>Amount</th><th>Mode</th><th>Reference</th><th>Received By</th>';
     const filtered = KTG.Ledger.allPayments().filter(p => inRange(p.date, from, to) && (!cust || p.customer === cust) && (!extra || p.mode === extra));

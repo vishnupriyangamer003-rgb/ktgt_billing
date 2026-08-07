@@ -74,11 +74,6 @@ $pageModals = <<<'HTML'
             </select>
           </div>
           <div class="col-12"><label class="form-label">Description</label><textarea class="form-control" rows="3" placeholder="Scope of work..."></textarea></div>
-          <div class="col-12">
-            <label class="form-label">Attachments <span class="fs-11 text-muted fw-400">(requirements, references, briefs)</span></label>
-            <input type="file" class="form-control" id="projectFileInput" multiple>
-            <div class="mt-2" id="attachChips"></div>
-          </div>
         </div>
       </div>
       <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" id="saveProjectBtn">Create Project</button></div>
@@ -109,11 +104,6 @@ function init(){
 
   projectsList = KTG.DATA.projects.map(p => ({...p}));
 
-  document.getElementById('projectFileInput').addEventListener('change', (e) => {
-    const chips = document.getElementById('attachChips');
-    chips.innerHTML = Array.from(e.target.files).map(f => `<span class="attach-chip"><i class="bi bi-paperclip"></i>${f.name}</span>`).join('');
-  });
-
   document.getElementById('newProjectBtn').addEventListener('click', () => openModal(null));
   document.getElementById('saveProjectBtn').addEventListener('click', saveProject);
 
@@ -135,7 +125,6 @@ function openModal(index){
   editIndex = index;
   const modalTitle = document.getElementById('projectModalTitle');
   const saveBtn = document.getElementById('saveProjectBtn');
-  document.getElementById('attachChips').innerHTML = '';
   if (index === null) {
     modalTitle.innerHTML = '<i class="bi bi-kanban-fill text-primary-KTG me-2"></i>New Project';
     saveBtn.textContent = 'Create Project';

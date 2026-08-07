@@ -45,33 +45,32 @@ include __DIR__ . '/components/header.php';
         </div>
       </div>
 
-      <!-- Search + operational filters -->
+      <!-- Filters — collapsed by default; expand to search/filter -->
       <div class="section-card mb-3 fade-in-up">
         <div class="section-body py-3">
-          <div class="row g-2 align-items-end">
-            <div class="col-md-5">
-              <label class="form-label mb-1">Search</label>
-              <div class="position-relative">
-                <i class="bi bi-search position-absolute" style="left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
-                <input type="text" class="form-control ps-5" id="searchInput" placeholder="Search project, customer or live link...">
+          <button class="btn btn-light d-flex align-items-center justify-content-between w-100" type="button" data-bs-toggle="collapse" data-bs-target="#renewalFiltersBody" aria-expanded="false" aria-controls="renewalFiltersBody">
+            <span><i class="bi bi-funnel me-2"></i>Filters</span>
+            <i class="bi bi-chevron-down"></i>
+          </button>
+          <div class="collapse" id="renewalFiltersBody">
+            <div class="row g-2 align-items-end mt-2">
+              <div class="col-md-5">
+                <label class="form-label mb-1">Search</label>
+                <div class="position-relative">
+                  <i class="bi bi-search position-absolute" style="left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
+                  <input type="text" class="form-control ps-5" id="searchInput" placeholder="Search project, customer or live link...">
+                </div>
               </div>
+              <div class="col-md-3"><label class="form-label mb-1">Hosted On (Server)</label><select class="form-select" id="serverFilter"><option value="">All Servers</option></select></div>
+              <div class="col-md-3"><label class="form-label mb-1">Paid Status</label><select class="form-select" id="statusFilter"><option value="">All Status</option></select></div>
+              <div class="col-md-1"><button class="btn btn-light w-100" id="clearFiltersBtn" title="Clear all filters"><i class="bi bi-x-lg"></i></button></div>
             </div>
-            <div class="col-md-3"><label class="form-label mb-1">Hosted On (Server)</label><select class="form-select" id="serverFilter"><option value="">All Servers</option></select></div>
-            <div class="col-md-3"><label class="form-label mb-1">Paid Status</label><select class="form-select" id="statusFilter"><option value="">All Status</option></select></div>
-            <div class="col-md-1"><button class="btn btn-light w-100" id="clearFiltersBtn" title="Clear all filters"><i class="bi bi-x-lg"></i></button></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Structural filters -->
-      <div class="section-card mb-3 fade-in-up">
-        <div class="section-body py-3">
-          <div class="row g-2 align-items-end">
-            <div class="col-md-2"><label class="form-label mb-1">From</label><input type="date" class="form-control" id="fromDate"></div>
-            <div class="col-md-2"><label class="form-label mb-1">To</label><input type="date" class="form-control" id="toDate"></div>
-            <div class="col-md-3"><label class="form-label mb-1">Project</label><select class="form-select" id="projectFilter"><option value="">All Projects</option></select></div>
-            <div class="col-md-3"><label class="form-label mb-1">Customer</label><select class="form-select" id="customerFilter"><option value="">All Customers</option></select></div>
-            <div class="col-md-2"><label class="form-label mb-1">Project Type</label><select class="form-select" id="typeFilter"><option value="">All Types</option></select></div>
+            <div class="row g-2 align-items-end mt-2">
+              <div class="col-md-2"><label class="form-label mb-1">From</label><input type="date" class="form-control" id="fromDate"></div>
+              <div class="col-md-2"><label class="form-label mb-1">To</label><input type="date" class="form-control" id="toDate"></div>
+              <div class="col-md-4"><label class="form-label mb-1">Customer</label><select class="form-select" id="customerFilter"><option value="">All Customers</option></select></div>
+              <div class="col-md-4"><label class="form-label mb-1">Project Type</label><select class="form-select" id="typeFilter"><option value="">All Types</option></select></div>
+            </div>
           </div>
         </div>
       </div>
@@ -206,7 +205,6 @@ function init(){
 
   const custNames = [...new Set(KTG.DATA.projects.map(p => p.customer))];
   document.getElementById('customerFilter').innerHTML = '<option value="">All Customers</option>' + custNames.map(n => `<option>${n}</option>`).join('');
-  document.getElementById('projectFilter').innerHTML = '<option value="">All Projects</option>' + projects.map(p => `<option>${p.name}</option>`).join('');
   document.getElementById('typeFilter').innerHTML = '<option value="">All Types</option>' + KTG.Masters.projectTypes().map(t => `<option>${t}</option>`).join('');
   document.getElementById('statusFilter').innerHTML = '<option value="">All Status</option>' + KTG.Masters.paidStatusTypes().map(t => `<option>${t}</option>`).join('');
   document.getElementById('serverFilter').innerHTML = '<option value="">All Servers</option>' + KTG.Masters.servers().map(s => `<option>${s}</option>`).join('');
@@ -220,7 +218,7 @@ function init(){
       applyQuickRange(chip.dataset.range);
     });
   });
-  ['fromDate','toDate','projectFilter','customerFilter','typeFilter','statusFilter','serverFilter'].forEach(id => {
+  ['fromDate','toDate','customerFilter','typeFilter','statusFilter','serverFilter'].forEach(id => {
     document.getElementById(id).addEventListener('change', render);
   });
   document.getElementById('searchInput').addEventListener('input', render);
@@ -284,7 +282,6 @@ function expiryBadge(dateStr){
 function render(){
   const from = document.getElementById('fromDate').value;
   const to = document.getElementById('toDate').value;
-  const project = document.getElementById('projectFilter').value;
   const customer = document.getElementById('customerFilter').value;
   const type = document.getElementById('typeFilter').value;
   const status = document.getElementById('statusFilter').value;
@@ -293,7 +290,7 @@ function render(){
 
   const filtered = renewalsList.filter(r =>
     (!from || r.expiryDate >= from) && (!to || r.expiryDate <= to) &&
-    (!project || r.project === project) && (!customer || r.customer === customer) &&
+    (!customer || r.customer === customer) &&
     (!type || r.type === type) && (!status || r.paidStatus === status) &&
     (!server || r.server === server) &&
     (!q || r.project.toLowerCase().includes(q) || r.customer.toLowerCase().includes(q) || r.liveLink.toLowerCase().includes(q) || r.server.toLowerCase().includes(q))
@@ -339,7 +336,6 @@ function clearFilters(){
   document.getElementById('searchInput').value = '';
   document.getElementById('serverFilter').value = '';
   document.getElementById('statusFilter').value = '';
-  document.getElementById('projectFilter').value = '';
   document.getElementById('customerFilter').value = '';
   document.getElementById('typeFilter').value = '';
   document.querySelectorAll('.quick-filter-chip').forEach(c => c.classList.remove('active'));

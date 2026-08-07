@@ -31,7 +31,6 @@
 
     <div class="nav-section-label">Sales</div>
     <a href="customers.php" class="side-link" data-nav="customers"><i class="bi bi-people-fill"></i><span class="link-text">Customers</span></a>
-    <a href="projects.php" class="side-link" data-nav="projects"><i class="bi bi-kanban-fill"></i><span class="link-text">Projects</span></a>
     <a href="quotation-list.php" class="side-link" data-nav="quotations"><i class="bi bi-file-earmark-text-fill"></i><span class="link-text">Quotations</span></a>
     <a href="invoice-list.php" class="side-link" data-nav="invoices"><i class="bi bi-receipt"></i><span class="link-text">Invoices</span></a>
     <a href="payments.php" class="side-link" data-nav="payments"><i class="bi bi-cash-coin"></i><span class="link-text">Payments</span></a>
@@ -54,8 +53,9 @@
       <a href="reports.php?type=nongst" class="side-sublink">Non-GST Report</a>
       <a href="reports.php?type=followup" class="side-sublink">Follow Up Report</a>
     </div>
-    <a href="documents.php" class="side-link" data-nav="documents"><i class="bi bi-folder2-open"></i><span class="link-text">Documents</span></a>
+    <!-- Follow Ups temporarily hidden from navigation — page remains at calendar.php
     <a href="calendar.php" class="side-link" data-nav="calendar"><i class="bi bi-telephone-outbound-fill"></i><span class="link-text">Follow Ups</span><span class="side-badge">3</span></a>
+    -->
 
     <div class="nav-section-label">Account</div>
     <a href="settings.php" class="side-link" data-nav="settings"><i class="bi bi-gear-fill"></i><span class="link-text">Settings</span></a>

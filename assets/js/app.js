@@ -81,18 +81,18 @@ const KTG = (() => {
       {id:"QUO-2026-0084", customer:"Pinnacle Constructions", project:"Real Estate Showcase Site", date:"2026-06-15", expiry:"2026-06-30", amount:175000, status:"approved"}
     ],
     invoices: [
-      {id:"INV-2026-0150", customer:"Zen Foods Pvt Ltd", date:"2026-07-25", due:"2026-08-08", amount:185000, paid:185000, status:"paid"},
-      {id:"INV-2026-0149", customer:"Bright Retail Solutions", date:"2026-07-20", due:"2026-08-04", amount:420000, paid:200000, status:"partial"},
-      {id:"INV-2026-0148", customer:"Nova Textiles", date:"2026-07-12", due:"2026-07-27", amount:310000, paid:0, status:"pending"},
-      {id:"INV-2026-0147", customer:"Sunrise Hospitals", date:"2026-06-30", due:"2026-07-14", amount:265000, paid:0, status:"overdue"},
-      {id:"INV-2026-0146", customer:"Green Leaf Organics", date:"2026-06-22", due:"2026-07-06", amount:95000, paid:95000, status:"paid"},
-      {id:"INV-2026-0145", customer:"Pinnacle Constructions", date:"2026-06-18", due:"2026-07-02", amount:175000, paid:175000, status:"paid"},
-      {id:"INV-2026-0144", customer:"Orbit Learning Academy", date:"2026-06-05", due:"2026-06-20", amount:390000, paid:0, status:"cancelled"},
-      {id:"INV-2026-0143", customer:"Velocity Motors", date:"2026-05-28", due:"2026-06-12", amount:150000, paid:60000, status:"partial"},
-      {id:"INV-2026-0154", customer:"Green Leaf Organics", date:"2026-07-08", due:"2026-07-22", amount:10000, paid:0, status:"pending"},
-      {id:"INV-2026-0155", customer:"Green Leaf Organics", date:"2026-07-14", due:"2026-07-28", amount:15000, paid:0, status:"pending"},
-      {id:"INV-2026-0156", customer:"Green Leaf Organics", date:"2026-07-21", due:"2026-08-04", amount:20000, paid:0, status:"pending"},
-      {id:"INV-2026-0157", customer:"Green Leaf Organics", date:"2026-07-29", due:"2026-08-12", amount:25000, paid:0, status:"pending"}
+      {id:"INV-2026-0150", customer:"Zen Foods Pvt Ltd", date:"2026-07-25", due:"2026-08-08", amount:185000, paid:185000, status:"paid", gstType:"gst"},
+      {id:"INV-2026-0149", customer:"Bright Retail Solutions", date:"2026-07-20", due:"2026-08-04", amount:420000, paid:200000, status:"partial", gstType:"gst"},
+      {id:"INV-2026-0148", customer:"Nova Textiles", date:"2026-07-12", due:"2026-07-27", amount:310000, paid:0, status:"pending", gstType:"gst"},
+      {id:"INV-2026-0147", customer:"Sunrise Hospitals", date:"2026-06-30", due:"2026-07-14", amount:265000, paid:0, status:"overdue", gstType:"gst"},
+      {id:"INV-2026-0146", customer:"Green Leaf Organics", date:"2026-06-22", due:"2026-07-06", amount:95000, paid:95000, status:"paid", gstType:"gst"},
+      {id:"INV-2026-0145", customer:"Pinnacle Constructions", date:"2026-06-18", due:"2026-07-02", amount:175000, paid:175000, status:"paid", gstType:"gst"},
+      {id:"INV-2026-0144", customer:"Orbit Learning Academy", date:"2026-06-05", due:"2026-06-20", amount:390000, paid:0, status:"cancelled", gstType:"gst"},
+      {id:"INV-2026-0143", customer:"Velocity Motors", date:"2026-05-28", due:"2026-06-12", amount:150000, paid:60000, status:"partial", gstType:"gst"},
+      {id:"BOS-2026-0001", customer:"Green Leaf Organics", date:"2026-07-08", due:"2026-07-22", amount:10000, paid:0, status:"pending", gstType:"nongst"},
+      {id:"BOS-2026-0002", customer:"Green Leaf Organics", date:"2026-07-14", due:"2026-07-28", amount:15000, paid:0, status:"pending", gstType:"nongst"},
+      {id:"BOS-2026-0003", customer:"Green Leaf Organics", date:"2026-07-21", due:"2026-08-04", amount:20000, paid:0, status:"pending", gstType:"nongst"},
+      {id:"BOS-2026-0004", customer:"Green Leaf Organics", date:"2026-07-29", due:"2026-08-12", amount:25000, paid:0, status:"pending", gstType:"nongst"}
     ],
     payments: [
       {id:"PAY-1042", invoice:"INV-2026-0150", customer:"Zen Foods Pvt Ltd", date:"2026-07-26", amount:185000, mode:"UPI", ref:"UPI2607261234", by:"Vicky"},
@@ -794,7 +794,26 @@ const KTG = (() => {
     });
   }
 
-  return { DATA, qs, Auth, Masters, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable };
+  /* GST invoices use the INV- prefix, Non-GST (Bill of Supply) invoices use BOS- —
+     each series numbers independently so switching tax mode doesn't skip numbers. */
+  function nextInvoiceNumber(gstType){
+    const prefix = gstType === 'nongst' ? 'BOS' : 'INV';
+    const year = new Date().getFullYear();
+    let max = 0;
+    DATA.invoices.forEach(inv => {
+      const m = inv.id.match(new RegExp(`^${prefix}-(\\d{4})-(\\d+)$`));
+      if (m) max = Math.max(max, +m[2]);
+    });
+    return `${prefix}-${year}-${String(max + 1).padStart(4, '0')}`;
+  }
+
+  function dueDays(dueDateStr){
+    const due = new Date(dueDateStr + 'T00:00:00');
+    const today = new Date(); today.setHours(0,0,0,0);
+    return Math.round((due - today) / 86400000);
+  }
+
+  return { DATA, qs, Auth, Masters, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable, nextInvoiceNumber, dueDays };
 })();
 
 document.addEventListener('DOMContentLoaded', () => { KTG.loadLayout(); });

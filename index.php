@@ -214,7 +214,7 @@ include __DIR__ . '/components/header.php';
         <div class="table-responsive">
           <table class="table table-modern mb-0">
             <thead>
-              <tr><th>Quotation #</th><th>Customer</th><th>Project</th><th>Date</th><th>Amount</th><th>Status</th><th></th></tr>
+              <tr><th>Quotation #</th><th>Customer</th><th>Date</th><th>Amount</th><th>Status</th><th></th></tr>
             </thead>
             <tbody id="dashQuotationsBody"></tbody>
           </table>
@@ -276,7 +276,6 @@ function renderDashboard(){
     <tr>
       <td class="cell-title">${q.id}</td>
       <td>${q.customer}</td>
-      <td>${q.project}</td>
       <td>${q.date}</td>
       <td class="fw-600">${KTG.money(q.amount)}</td>
       <td><span class="chip chip-${q.status}">${q.status}</span></td>
