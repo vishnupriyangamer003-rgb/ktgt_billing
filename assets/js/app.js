@@ -365,6 +365,43 @@ const KTG = (() => {
     initLogout();
     initNotifications();
     initUserMeta();
+    initSearchableSelects();
+  }
+
+  /* Turns every <select> on the page into a searchable dropdown (Choices.js), including
+     ones populated later via JS (customer/service/filter lists etc.). Since many selects
+     get their <option>s injected long after page load, a one-time init isn't enough — a
+     MutationObserver rescans on every DOM change and resyncs already-enhanced selects
+     (via setChoices) instead of double-wrapping them. Add class="no-search" to opt out. */
+  function initSearchableSelects() {
+    if (typeof Choices === 'undefined') return;
+    const instances = new WeakMap();
+
+    const optionsFromSelect = (select) => Array.from(select.options).map(o => ({
+      value: o.value, label: o.textContent, selected: o.selected, disabled: o.disabled
+    }));
+
+    const enhance = (select) => {
+      if (!select || select.tagName !== 'SELECT' || select.multiple || select.classList.contains('no-search')) return;
+      if (instances.has(select)) {
+        instances.get(select).setChoices(optionsFromSelect(select), 'value', 'label', true);
+        return;
+      }
+      try {
+        instances.set(select, new Choices(select, { searchEnabled: true, shouldSort: false, itemSelectText: '', allowHTML: false }));
+      } catch (e) { /* ignore */ }
+    };
+
+    const scan = () => document.querySelectorAll('select').forEach(enhance);
+    scan();
+
+    let pending = false;
+    const observer = new MutationObserver(() => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => { pending = false; scan(); });
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   function initSidebarNav() {

@@ -10,6 +10,11 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link href="assets/css/style.css" rel="stylesheet">
+<style>
+  /* Notes/Bank/Totals block always sits at the bottom of the sheet, even for a 1-item quotation */
+  #billRoot{ display:flex; flex-direction:column; }
+  #billRoot .bill-bottom-block{ margin-top:auto; }
+</style>
 </head>
 <body>
 
@@ -79,29 +84,34 @@ document.addEventListener('DOMContentLoaded', () => {
       <tbody>${rows}</tbody>
     </table>
 
-    <div class="row g-3 mb-4">
-      <div class="col-md-7">
-        <div class="bill-notes-label mb-1">Notes / Terms</div>
-        <p class="fs-13 text-secondary mb-3">${d.terms}</p>
-        <div class="bill-notes-label mb-1">Bank Account Details</div>
-        <div class="fs-13">Account Name: <span class="bill-notes-value">${d.bank.name}</span></div>
-        <div class="fs-13">Account Number: <span class="bill-notes-value">${d.bank.account}</span></div>
-        <div class="fs-13">Bank Name: <span class="bill-notes-value">${d.bank.bank}</span></div>
-        <div class="fs-13">IFSC Code: <span class="bill-notes-value">${d.bank.ifsc}</span></div>
-      </div>
-      <div class="col-md-5">
-        <div class="bill-totals">
-          <div class="bt-row bt-grand"><span>Total Amount</span><span>${KTG.money(d.total)}</span></div>
+    <div class="bill-bottom-block">
+      <div class="row g-3 mb-4">
+        <div class="col-md-7">
+          <div class="bill-notes-label mb-1">Notes / Terms</div>
+          <p class="fs-13 text-secondary mb-3">${d.terms}</p>
+          <div class="bill-notes-label mb-1">Bank Account Details</div>
+          <div class="fs-13">Account Name: <span class="bill-notes-value">${d.bank.name}</span></div>
+          <div class="fs-13">Account Number: <span class="bill-notes-value">${d.bank.account}</span></div>
+          <div class="fs-13">Bank Name: <span class="bill-notes-value">${d.bank.bank}</span></div>
+          <div class="fs-13">IFSC Code: <span class="bill-notes-value">${d.bank.ifsc}</span></div>
+        </div>
+        <div class="col-md-5">
+          <div class="bill-totals">
+            <div class="bt-row"><span class="text-muted">Subtotal</span><span>${KTG.money(d.subtotal)}</span></div>
+            ${d.discount > 0 ? `<div class="bt-row"><span class="text-muted">Discount</span><span class="text-danger">-${KTG.money(d.discount)}</span></div>` : ''}
+            ${Math.abs(d.roundOff || 0) > 0.001 ? `<div class="bt-row"><span class="text-muted">Round Off</span><span>${d.roundOff >= 0 ? '+' : '−'}${KTG.money(Math.abs(d.roundOff))}</span></div>` : ''}
+            <div class="bt-row bt-grand"><span>Total Amount</span><span>${KTG.money(d.total)}</span></div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="row g-3 mb-3">
-      <div class="col-md-6"><div class="bill-block-label">Authorized Signature</div><div class="sign-box" style="border:1.5px dashed var(--border); border-radius:12px; height:70px; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:11px;">Signature</div></div>
-      <div class="col-md-6"><div class="bill-block-label">Company Seal</div><div class="sign-box" style="border:1.5px dashed var(--border); border-radius:12px; height:70px; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:11px;">Seal / Stamp</div></div>
-    </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-6"><div class="bill-block-label">Authorized Signature</div><div class="sign-box" style="border:1.5px dashed var(--border); border-radius:12px; height:70px; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:11px;">Signature</div></div>
+        <div class="col-md-6"><div class="bill-block-label">Company Seal</div><div class="sign-box" style="border:1.5px dashed var(--border); border-radius:12px; height:70px; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:11px;">Seal / Stamp</div></div>
+      </div>
 
-    <div class="bill-footer-note">This Quotation is Computer Generated | Valid for 15 Days from Date of Issue</div>`;
+      <div class="bill-footer-note">This Quotation is Computer Generated | Valid for 15 Days from Date of Issue</div>
+    </div>`;
 
   if (new URLSearchParams(location.search).get('autoprint') === '1') {
     setTimeout(() => window.print(), 350);

@@ -8,6 +8,7 @@
 if (!isset($pageTitle)) { $pageTitle = 'KTG Invoice Suite'; }
 if (!isset($pageKey))   { $pageKey = ''; }
 if (!isset($extraHead)) { $extraHead = ''; }
+if (!isset($embed))     { $embed = false; }
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -20,9 +21,14 @@ if (!isset($extraHead)) { $extraHead = ''; }
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/choices.js@10.2.0/public/assets/styles/choices.min.css" rel="stylesheet">
 <link href="assets/css/style.css" rel="stylesheet">
 <?php echo $extraHead; ?>
 </head>
+<?php if ($embed) { ?>
+<body data-page="<?php echo $pageKey; ?>" class="embed-mode">
+<main class="page-content embed-content">
+<?php } else { ?>
 <body data-page="<?php echo $pageKey; ?>">
 
 <div class="app-shell">
@@ -35,3 +41,4 @@ if (!isset($extraHead)) { $extraHead = ''; }
     </div>
 
     <main class="page-content">
+<?php } ?>

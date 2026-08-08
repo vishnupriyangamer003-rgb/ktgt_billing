@@ -138,15 +138,22 @@ include __DIR__ . '/components/header.php';
           <div class="col-md-5">
             <div class="bill-totals">
               <div class="bt-row"><span class="text-muted">Subtotal</span><span class="fw-600" id="sumSubtotal">₹0</span></div>
+              <div class="bt-row"><span class="text-muted">Discount (₹)</span>
+                <span class="fw-600"><input type="number" class="form-control form-control-sm text-end" style="width:110px; display:inline-block;" id="discountAmount" value="0" min="0"></span>
+              </div>
               <div class="bt-row" id="sgstRow"><span class="text-muted" id="sgstLabel">SGST 9%</span><span class="fw-600" id="sumSgst">₹0</span></div>
               <div class="bt-row" id="cgstRow"><span class="text-muted" id="cgstLabel">CGST 9%</span><span class="fw-600" id="sumCgst">₹0</span></div>
               <div class="bt-row" id="igstRow"><span class="text-muted" id="igstLabel">IGST 18%</span><span class="fw-600" id="sumIgst">₹0</span></div>
-              <div class="bt-row bt-grand"><span>Total</span><span id="sumTotal">₹0</span></div>
+              <div class="bt-row" id="roundoffRow"><span class="text-muted">Round Off</span><span class="fw-600" id="sumRoundoff">₹0</span></div>
+              <div class="bt-row bt-grand"><span>Total</span>
+                <span class="fw-800"><input type="number" class="form-control form-control-sm text-end fw-800" style="width:130px; display:inline-block; font-size:1.05rem;" id="grandTotalInput" value="0"></span>
+              </div>
               <div class="bt-row"><span class="text-muted">Advance Paid</span>
                 <span class="fw-600 text-success"><input type="number" class="form-control form-control-sm text-end" style="width:110px; display:inline-block;" id="advancePaid" value="0"></span>
               </div>
               <div class="bt-row"><span class="fw-700">Amount Due</span><span class="fw-700 text-danger" id="sumBalance">₹0</span></div>
             </div>
+            <div class="fs-11 text-muted mt-1"><i class="bi bi-info-circle me-1"></i>Edit Total to auto-adjust the discount, or edit Discount to recompute the Total.</div>
           </div>
         </div>
       </div>
@@ -208,6 +215,8 @@ function init(){
   document.getElementById('withGstBtn').addEventListener('click', () => setGst(true));
   document.getElementById('withoutGstBtn').addEventListener('click', () => setGst(false));
   document.getElementById('advancePaid').addEventListener('input', calcTotals);
+  document.getElementById('discountAmount').addEventListener('input', calcTotals);
+  document.getElementById('grandTotalInput').addEventListener('input', onGrandTotalChange);
   document.getElementById('previewBtn').addEventListener('click', () => openPreview(false));
   document.getElementById('printBtn').addEventListener('click', () => openPreview(true));
   document.getElementById('downloadBtn').addEventListener('click', () => openPreview(true));
@@ -301,6 +310,12 @@ function currentTax(subtotal){
   return { percent, taxType: gstEnabled ? taxType : 'none', taxAmount };
 }
 
+function itemsSubtotal(list){
+  return list.reduce((s, it) => s + (+it.qty || 0) * (+it.rate || 0), 0);
+}
+
+/* Subtotal → Discount → taxable amount → tax → raw total → rounded Total (Round Off = the gap).
+   The Total field is editable: typing a target total back-solves the Discount needed to reach it. */
 function calcTotals(){
   let subtotal = 0;
   items.forEach((it, i) => {
@@ -309,11 +324,15 @@ function calcTotals(){
     document.querySelectorAll(`.item-amount[data-i="${i}"]`).forEach(cell => cell.textContent = KTG.money(Math.round(amount)));
   });
 
-  const { percent, taxType, taxAmount } = currentTax(subtotal);
+  const discount = Math.min(Math.max(+document.getElementById('discountAmount').value || 0, 0), subtotal);
+  const taxable = subtotal - discount;
+  const { percent, taxType, taxAmount } = currentTax(taxable);
   const half = percent / 2;
-  const grand = subtotal + taxAmount;
+  const rawTotal = taxable + taxAmount;
+  const roundedTotal = Math.round(rawTotal);
+  const roundOff = roundedTotal - rawTotal;
   const advance = +document.getElementById('advancePaid').value || 0;
-  const due = Math.max(Math.round(grand - advance), 0);
+  const due = Math.max(roundedTotal - advance, 0);
 
   document.getElementById('sumSubtotal').textContent = KTG.money(Math.round(subtotal));
   document.getElementById('sgstLabel').textContent = `SGST ${half}%`;
@@ -325,18 +344,33 @@ function calcTotals(){
   document.getElementById('sgstRow').style.display = taxType === 'sgst_cgst' ? 'flex' : 'none';
   document.getElementById('cgstRow').style.display = taxType === 'sgst_cgst' ? 'flex' : 'none';
   document.getElementById('igstRow').style.display = taxType === 'igst' ? 'flex' : 'none';
-  document.getElementById('sumTotal').textContent = KTG.money(Math.round(grand));
+  document.getElementById('roundoffRow').style.display = Math.abs(roundOff) > 0.001 ? 'flex' : 'none';
+  document.getElementById('sumRoundoff').textContent = (roundOff >= 0 ? '+' : '−') + KTG.money(Math.abs(roundOff));
+  document.getElementById('grandTotalInput').value = roundedTotal;
   document.getElementById('sumBalance').textContent = KTG.money(due);
+}
+
+function onGrandTotalChange(){
+  const target = +document.getElementById('grandTotalInput').value || 0;
+  const subtotal = itemsSubtotal(items);
+  const percent = gstEnabled ? (+document.getElementById('taxSelect').value || 0) : 0;
+  const taxable = percent > 0 ? target / (1 + percent / 100) : target;
+  const discount = Math.min(Math.max(subtotal - taxable, 0), subtotal);
+  document.getElementById('discountAmount').value = Math.round(discount);
+  calcTotals();
 }
 
 function openPreview(autoprint){
   const name = document.getElementById('customerSelect').value;
   const c = KTG.DATA.customers.find(x => x.name === name);
   const realItems = items.filter(it => it.service);
-  let subtotal = 0;
-  realItems.forEach(it => subtotal += (+it.qty || 0) * (+it.rate || 0));
-  const { percent, taxType, taxAmount } = currentTax(subtotal);
-  const grandTotal = Math.round(subtotal + taxAmount);
+  const subtotal = itemsSubtotal(realItems);
+  const discount = Math.min(Math.max(+document.getElementById('discountAmount').value || 0, 0), subtotal);
+  const taxable = subtotal - discount;
+  const { percent, taxType, taxAmount } = currentTax(taxable);
+  const rawTotal = taxable + taxAmount;
+  const grandTotal = Math.round(rawTotal);
+  const roundOff = grandTotal - rawTotal;
   const advance = +document.getElementById('advancePaid').value || 0;
   const balanceDue = Math.max(grandTotal - advance, 0);
 
@@ -347,8 +381,8 @@ function openPreview(autoprint){
     dueDate: document.getElementById('dueDate').value,
     customer: c ? {name: c.name, gst: c.gst, address: c.address, mobile: c.mobile} : {name: name || '—', gst: '—', address: '—', mobile: '—'},
     items: realItems,
-    subtotal: Math.round(subtotal),
-    taxType, percent, halfPercent: percent/2, taxAmount: Math.round(taxAmount),
+    subtotal: Math.round(subtotal), discount: Math.round(discount),
+    taxType, percent, halfPercent: percent/2, taxAmount: Math.round(taxAmount), roundOff,
     grandTotal, advancePaid: advance, balanceDue,
     terms: document.getElementById('termsText').value,
     bank: {name:'Knock The Globe Technologies', account:'0012299171', bank:'Kotak Bank', ifsc:'KKBK0008775'}

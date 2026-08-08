@@ -1,6 +1,7 @@
 <?php
 $pageTitle = "Payments";
 $pageKey = "payments";
+$embed = (isset($_GET['embed']) && $_GET['embed'] === '1');
 $extraHead = <<<'HTML'
 <style>
 .pay-summary{ display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1.25rem; }
@@ -49,6 +50,7 @@ include __DIR__ . '/components/header.php';
                   </div>
                   <div class="col-md-4"><label class="form-label">Reference Number</label><input class="form-control" id="payRef" placeholder="Transaction / Cheque #"></div>
                   <div class="col-md-8"><label class="form-label">Collected Amount <span class="req">*</span></label><input type="number" class="form-control form-control-lg fw-700" id="payAmount" placeholder="0.00"></div>
+                  <div class="col-md-4"><label class="form-label">Balance After Payment</label><input class="form-control form-control-lg fw-700 text-danger" id="payBalanceAfter" value="₹0" readonly></div>
                   <div class="col-md-4"><label class="form-label">Received By</label><input class="form-control" id="payBy" value="Vicky"></div>
                   <div class="col-12"><label class="form-label">Remarks</label><input class="form-control" id="payRemarks" placeholder="Optional remarks"></div>
                 </div>
@@ -146,7 +148,7 @@ function init(){
   document.getElementById('ledgerCustomer').innerHTML = customerNames.map(n => `<option>${n}</option>`).join('');
 
   paymentCustomer.addEventListener('change', () => onCustomerSelect(paymentCustomer.value));
-  document.getElementById('payAmount').addEventListener('input', renderTally);
+  document.getElementById('payAmount').addEventListener('input', () => { renderTally(); updateBalanceAfter(); });
   document.getElementById('historyFilter').addEventListener('change', renderHistory);
   document.getElementById('savePaymentBtn').addEventListener('click', savePayment);
   document.getElementById('ledgerCustomer').addEventListener('change', renderLedger);
@@ -188,7 +190,20 @@ function onCustomerSelect(name){
   document.getElementById('payAmount').placeholder = 'e.g. ' + summary.balance;
 
   renderTally();
+  updateBalanceAfter();
   renderCustHistory(name);
+}
+
+function updateBalanceAfter(){
+  const name = document.getElementById('paymentCustomer').value;
+  const field = document.getElementById('payBalanceAfter');
+  if (!name) { field.value = '₹0'; return; }
+  const summary = KTG.Ledger.customerSummary(name);
+  const amount = +document.getElementById('payAmount').value || 0;
+  const balanceAfter = Math.max(summary.balance - amount, 0);
+  field.value = KTG.money(balanceAfter);
+  field.classList.toggle('text-danger', balanceAfter > 0);
+  field.classList.toggle('text-success', balanceAfter === 0);
 }
 
 function renderCustHistory(name){

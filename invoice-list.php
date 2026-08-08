@@ -17,12 +17,6 @@ include __DIR__ . '/components/header.php';
         </div>
       </div>
 
-      <!-- GST / Non-GST split -->
-      <ul class="nav nav-pills-soft gap-2 mb-3 fade-in-up" id="gstTabs">
-        <li class="nav-item"><button class="nav-link active" data-gst="gst"><i class="bi bi-receipt-cutoff me-1"></i>GST Invoices</button></li>
-        <li class="nav-item"><button class="nav-link" data-gst="nongst"><i class="bi bi-receipt me-1"></i>Non-GST Invoices</button></li>
-      </ul>
-
       <div class="row g-3 mb-3 stagger">
         <div class="col-6 col-md-3"><div class="stat-card accent-success"><div class="stat-icon bg-soft-success"><i class="bi bi-check-circle-fill"></i></div><div class="stat-label">Paid</div><div class="stat-value" id="statPaid">0</div></div></div>
         <div class="col-6 col-md-3"><div class="stat-card accent-warning"><div class="stat-icon bg-soft-warning"><i class="bi bi-hourglass-split"></i></div><div class="stat-label">Pending</div><div class="stat-value" id="statPending">0</div></div></div>
@@ -53,6 +47,12 @@ include __DIR__ . '/components/header.php';
         </div>
       </div>
 
+      <!-- GST / Non-GST split — sits directly above the datatable -->
+      <ul class="nav nav-pills-soft gap-2 mb-3 fade-in-up" id="gstTabs">
+        <li class="nav-item"><button class="nav-link active" data-gst="gst"><i class="bi bi-receipt-cutoff me-1"></i>GST Invoices</button></li>
+        <li class="nav-item"><button class="nav-link" data-gst="nongst"><i class="bi bi-receipt me-1"></i>Non-GST Invoices</button></li>
+      </ul>
+
       <!-- Grid view -->
       <div id="gridView" class="row g-3 stagger fade-in-up d-none" style="margin-bottom:1rem;"></div>
       <div class="d-flex justify-content-between align-items-center d-none" id="gridFooter">
@@ -79,10 +79,33 @@ include __DIR__ . '/components/header.php';
       </div>
 
 <?php
+$pageModals = <<<'HTML'
+<!-- Add Payment popup — embeds payments.php in an iframe, pre-scoped to the clicked invoice's customer -->
+<div class="modal fade" id="paymentPopupModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-width:1000px;">
+    <div class="modal-content" style="height:88vh;">
+      <div class="modal-header"><h5 class="modal-title"><i class="bi bi-cash-coin text-primary-KTG me-2"></i>Add Payment</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body p-0">
+        <iframe id="paymentPopupFrame" src="about:blank" style="width:100%; height:100%; border:0;" title="Add Payment"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+HTML;
+?>
+<?php
 $pageScript = <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(init, 150));
 let activeStatus = '';
 let activeGst = 'gst';
+
+function openPaymentPopup(customer){
+  document.getElementById('paymentPopupFrame').src = 'payments.php?embed=1&customer=' + customer;
+  new bootstrap.Modal(document.getElementById('paymentPopupModal')).show();
+}
+document.getElementById('paymentPopupModal') && document.getElementById('paymentPopupModal').addEventListener('hidden.bs.modal', () => {
+  document.getElementById('paymentPopupFrame').src = 'about:blank';
+});
 const STATUS_ICON = {paid:'bi-check-circle-fill', pending:'bi-hourglass-split', partial:'bi-pie-chart-fill', overdue:'bi-exclamation-triangle-fill', cancelled:'bi-x-circle-fill'};
 const STATUS_COLOR = {paid:'success', pending:'warning', partial:'primary', overdue:'danger', cancelled:'secondary'};
 
@@ -165,7 +188,7 @@ function render(list){
         <div class="d-flex justify-content-between align-items-center">
           <span class="dg-amt">${KTG.money(inv.amount)}</span>
           <div class="d-flex gap-1">
-            <a class="btn btn-sm btn-soft-primary" href="payments.php?customer=${encodeURIComponent(inv.customer)}" title="Add Payment"><i class="bi bi-cash-coin"></i></a>
+            <button type="button" class="btn btn-sm btn-soft-primary" onclick="openPaymentPopup('${encodeURIComponent(inv.customer)}')" title="Add Payment"><i class="bi bi-cash-coin"></i></button>
             <div class="dropdown">
               <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
               <div class="dropdown-menu dropdown-menu-end">
