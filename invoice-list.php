@@ -221,7 +221,7 @@ function render(list){
       <td><span class="chip chip-${inv.status}">${inv.status}</span></td>
       <td>
         <div class="d-flex gap-1">
-          <a class="btn btn-sm btn-soft-primary" href="payments.php?customer=${encodeURIComponent(inv.customer)}" title="Add Payment"><i class="bi bi-cash-coin"></i></a>
+          <button type="button" class="btn btn-sm btn-soft-primary" onclick="openPaymentPopup('${encodeURIComponent(inv.customer)}')" title="Add Payment"><i class="bi bi-cash-coin"></i></button>
           <div class="dropdown">
             <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
             <div class="dropdown-menu dropdown-menu-end">

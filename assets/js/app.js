@@ -368,31 +368,162 @@ const KTG = (() => {
     initSearchableSelects();
   }
 
-  /* Turns every <select> on the page into a searchable dropdown (Choices.js), including
-     ones populated later via JS (customer/service/filter lists etc.). Since many selects
-     get their <option>s injected long after page load, a one-time init isn't enough — a
-     MutationObserver rescans on every DOM change and resyncs already-enhanced selects
-     (via setChoices) instead of double-wrapping them. Add class="no-search" to opt out. */
+  /* Turns every <select> on the page into a simple searchable dropdown, including ones
+     populated later via JS (customer/service/filter lists etc.). Built from scratch instead
+     of a third-party widget: the option panel is appended to <body> with position:fixed,
+     positioned from the trigger's getBoundingClientRect() — so it can never be clipped by
+     an ancestor's overflow:auto/hidden (tables, modals, cards), which is what broke the
+     previous Choices.js-based version. The real <select> is kept (hidden) as the single
+     source of truth: picking an option sets its value and dispatches a real 'change' event,
+     so every existing onchange="..."/addEventListener('change',...) keeps working untouched.
+     Add class="no-search" to a <select> to leave it as a plain native dropdown. */
   function initSearchableSelects() {
-    if (typeof Choices === 'undefined') return;
-    const instances = new WeakMap();
+    let openState = null; // { select, trigger, panel, onDocMouseDown, onKeydown, onScrollResize }
 
-    const optionsFromSelect = (select) => Array.from(select.options).map(o => ({
-      value: o.value, label: o.textContent, selected: o.selected, disabled: o.disabled
-    }));
+    function closeOpen() {
+      if (!openState) return;
+      const { trigger, panel, onDocMouseDown, onKeydown, onScrollResize } = openState;
+      trigger.classList.remove('open');
+      panel.remove();
+      document.removeEventListener('mousedown', onDocMouseDown, true);
+      document.removeEventListener('keydown', onKeydown, true);
+      window.removeEventListener('scroll', onScrollResize, true);
+      window.removeEventListener('resize', onScrollResize);
+      openState = null;
+    }
 
-    const enhance = (select) => {
-      if (!select || select.tagName !== 'SELECT' || select.multiple || select.classList.contains('no-search')) return;
-      if (instances.has(select)) {
-        instances.get(select).setChoices(optionsFromSelect(select), 'value', 'label', true);
-        return;
-      }
-      try {
-        instances.set(select, new Choices(select, { searchEnabled: true, shouldSort: false, itemSelectText: '', allowHTML: false }));
-      } catch (e) { /* ignore */ }
-    };
+    function labelFor(select) {
+      const opt = select.options[select.selectedIndex];
+      return opt ? opt.textContent : '';
+    }
 
-    const scan = () => document.querySelectorAll('select').forEach(enhance);
+    function refreshTrigger(select, trigger) {
+      const label = trigger.querySelector('.ktg-ss-label');
+      const opt = select.options[select.selectedIndex];
+      const isPlaceholder = !select.value && opt && opt.disabled;
+      label.textContent = labelFor(select) || 'Select...';
+      label.classList.toggle('placeholder', !!isPlaceholder);
+    }
+
+    function openPanel(select, trigger) {
+      closeOpen();
+      const panel = document.createElement('div');
+      panel.className = 'ktg-ss-panel';
+
+      const search = document.createElement('input');
+      search.type = 'text';
+      search.className = 'ktg-ss-search';
+      search.placeholder = 'Search...';
+
+      const optionsWrap = document.createElement('div');
+      optionsWrap.className = 'ktg-ss-options';
+
+      panel.appendChild(search);
+      panel.appendChild(optionsWrap);
+      document.body.appendChild(panel);
+
+      const choices = Array.from(select.options)
+        .filter(o => !(o.disabled && !o.value))
+        .map(o => ({ value: o.value, label: o.textContent }));
+
+      const renderOptions = (filterText) => {
+        const q = filterText.trim().toLowerCase();
+        const matches = q ? choices.filter(c => c.label.toLowerCase().includes(q)) : choices;
+        optionsWrap.innerHTML = '';
+        if (!matches.length) {
+          const empty = document.createElement('div');
+          empty.className = 'ktg-ss-empty';
+          empty.textContent = 'No matches';
+          optionsWrap.appendChild(empty);
+          return;
+        }
+        matches.forEach(c => {
+          const row = document.createElement('div');
+          row.className = 'ktg-ss-option' + (c.value === select.value ? ' active' : '');
+          row.textContent = c.label;
+          row.addEventListener('click', () => {
+            select.value = c.value;
+            closeOpen();
+            refreshTrigger(select, trigger);
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+          optionsWrap.appendChild(row);
+        });
+      };
+      renderOptions('');
+      search.addEventListener('input', () => renderOptions(search.value));
+      search.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const first = optionsWrap.querySelector('.ktg-ss-option');
+          if (first) first.click();
+        }
+      });
+
+      const position = () => {
+        const rect = trigger.getBoundingClientRect();
+        const panelHeight = panel.offsetHeight || 260;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const openAbove = spaceBelow < panelHeight + 8 && rect.top > spaceBelow;
+        panel.style.left = Math.max(8, rect.left) + 'px';
+        panel.style.width = Math.max(rect.width, 200) + 'px';
+        panel.style.top = openAbove ? '' : (rect.bottom + 4) + 'px';
+        panel.style.bottom = openAbove ? (window.innerHeight - rect.top + 4) + 'px' : '';
+      };
+      position();
+
+      const onDocMouseDown = (e) => { if (!panel.contains(e.target) && e.target !== trigger) closeOpen(); };
+      const onKeydown = (e) => { if (e.key === 'Escape') closeOpen(); };
+      const onScrollResize = () => closeOpen();
+      document.addEventListener('mousedown', onDocMouseDown, true);
+      document.addEventListener('keydown', onKeydown, true);
+      window.addEventListener('scroll', onScrollResize, true);
+      window.addEventListener('resize', onScrollResize);
+
+      trigger.classList.add('open');
+      search.focus();
+      openState = { select, trigger, panel, onDocMouseDown, onKeydown, onScrollResize };
+    }
+
+    function enhance(select) {
+      if (!select || select.tagName !== 'SELECT' || select.multiple || select.classList.contains('no-search') || select.dataset.ssInit) return;
+      select.dataset.ssInit = '1';
+
+      const wrap = document.createElement('div');
+      wrap.className = 'ktg-ss';
+      const styleAttr = select.getAttribute('style');
+      if (styleAttr) { wrap.setAttribute('style', styleAttr); select.removeAttribute('style'); }
+
+      select.parentNode.insertBefore(wrap, select);
+      select.style.display = 'none';
+      wrap.appendChild(select);
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = (select.className ? select.className + ' ' : '') + 'ktg-ss-trigger';
+      if (select.disabled) trigger.disabled = true;
+      trigger.innerHTML = '<span class="ktg-ss-label"></span><i class="bi bi-chevron-down ktg-ss-caret"></i>';
+      wrap.appendChild(trigger);
+      refreshTrigger(select, trigger);
+
+      trigger.addEventListener('click', () => {
+        if (trigger.disabled) return;
+        if (openState && openState.select === select) { closeOpen(); return; }
+        openPanel(select, trigger);
+      });
+
+      select.dataset.ssTrigger = '1';
+      select._ktgTrigger = trigger;
+    }
+
+    function scan() {
+      document.querySelectorAll('select').forEach(select => {
+        if (select.dataset.ssInit) {
+          if (select._ktgTrigger) refreshTrigger(select, select._ktgTrigger);
+          return;
+        }
+        enhance(select);
+      });
+    }
     scan();
 
     let pending = false;
@@ -402,6 +533,10 @@ const KTG = (() => {
       requestAnimationFrame(() => { pending = false; scan(); });
     });
     observer.observe(document.body, { childList: true, subtree: true });
+
+    // Safety net: code that sets select.value directly (e.g. a pre-selected customer from a
+    // URL param) doesn't fire any DOM mutation, so the trigger label wouldn't otherwise resync.
+    setInterval(scan, 800);
   }
 
   function initSidebarNav() {
