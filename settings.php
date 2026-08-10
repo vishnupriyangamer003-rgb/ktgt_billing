@@ -38,16 +38,41 @@ include __DIR__ . '/components/header.php';
             <!-- Company profile -->
             <div class="tab-pane fade show active" id="tabCompany">
               <div class="section-card fade-in-up">
-                <div class="section-head"><h5>Company Profile</h5></div>
-                <div class="section-body">
-                  <div class="row g-3">
-                    <div class="col-md-6"><label class="form-label">Company Name</label><input class="form-control" value="Knock The Globe Technologies"></div>
-                    <div class="col-md-6"><label class="form-label">Website</label><input class="form-control" value="www.knocktheglobe.com"></div>
-                    <div class="col-md-6"><label class="form-label">Phone</label><input class="form-control" value="72001 23452"></div>
-                    <div class="col-md-6"><label class="form-label">Email</label><input class="form-control" value="knockus@knocktheglobe.com"></div>
-                    <div class="col-12"><label class="form-label">Address</label><textarea class="form-control" rows="2">4th Cross Rd, Vaiyapuri Nagar, Karur, Tamil Nadu 639002</textarea></div>
-                    <div class="col-md-6"><label class="form-label">GSTIN</label><input class="form-control" value="33ABCDE1234F1Z5"></div>
-                    <div class="col-md-6"><label class="form-label">PAN</label><input class="form-control" value="ABCDE1234F"></div>
+                <div class="section-head"><h5>Company Profile</h5><div class="subtitle">Shown on the invoice letterhead — kept separate per tax mode since a GST and a Non-GST bill can carry different company details</div></div>
+                <div class="section-body pb-2">
+                  <ul class="nav nav-pills-soft gap-2 mb-3" id="companyProfileTabs">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tabCompanyGst"><i class="bi bi-receipt-cutoff me-1"></i>GST Invoices</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabCompanyNonGst"><i class="bi bi-receipt me-1"></i>Non-GST Invoices</button></li>
+                  </ul>
+                </div>
+                <div class="tab-content">
+                  <div class="tab-pane fade show active" id="tabCompanyGst">
+                    <div class="section-body pt-0">
+                      <div class="row g-3">
+                        <div class="col-md-6"><label class="form-label">Company Name</label><input class="form-control" id="cpGstName"></div>
+                        <div class="col-md-6"><label class="form-label">Website</label><input class="form-control" id="cpGstWebsite"></div>
+                        <div class="col-md-6"><label class="form-label">Phone</label><input class="form-control" id="cpGstPhone"></div>
+                        <div class="col-md-6"><label class="form-label">Email</label><input class="form-control" id="cpGstEmail"></div>
+                        <div class="col-12"><label class="form-label">Address</label><textarea class="form-control" rows="2" id="cpGstAddress"></textarea></div>
+                        <div class="col-md-6"><label class="form-label">GSTIN</label><input class="form-control" id="cpGstGstin"></div>
+                        <div class="col-md-6"><label class="form-label">PAN</label><input class="form-control" id="cpGstPan"></div>
+                      </div>
+                      <button class="btn btn-primary mt-3" id="saveCompanyGstBtn"><i class="bi bi-check-lg me-1"></i>Save GST Company Details</button>
+                    </div>
+                  </div>
+                  <div class="tab-pane fade" id="tabCompanyNonGst">
+                    <div class="section-body pt-0">
+                      <div class="row g-3">
+                        <div class="col-md-6"><label class="form-label">Company Name</label><input class="form-control" id="cpNonGstName"></div>
+                        <div class="col-md-6"><label class="form-label">Website</label><input class="form-control" id="cpNonGstWebsite"></div>
+                        <div class="col-md-6"><label class="form-label">Phone</label><input class="form-control" id="cpNonGstPhone"></div>
+                        <div class="col-md-6"><label class="form-label">Email</label><input class="form-control" id="cpNonGstEmail"></div>
+                        <div class="col-12"><label class="form-label">Address</label><textarea class="form-control" rows="2" id="cpNonGstAddress"></textarea></div>
+                        <div class="col-md-6"><label class="form-label">GSTIN <span class="fs-11 text-muted fw-400">(leave blank to hide on the bill)</span></label><input class="form-control" id="cpNonGstGstin"></div>
+                        <div class="col-md-6"><label class="form-label">PAN</label><input class="form-control" id="cpNonGstPan"></div>
+                      </div>
+                      <button class="btn btn-primary mt-3" id="saveCompanyNonGstBtn"><i class="bi bi-check-lg me-1"></i>Save Non-GST Company Details</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -193,7 +218,37 @@ HTML;
 $pageScript = <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   KTG.makeResponsiveTable(document.querySelector('#tabUsers table'));
+  initCompanyProfileForms();
 }, 150));
+
+function fillCompanyForm(prefix, gstType){
+  const c = KTG.CompanyProfile.get(gstType);
+  document.getElementById(prefix + 'Name').value = c.name || '';
+  document.getElementById(prefix + 'Website').value = c.website || '';
+  document.getElementById(prefix + 'Phone').value = c.phone || '';
+  document.getElementById(prefix + 'Email').value = c.email || '';
+  document.getElementById(prefix + 'Address').value = c.address || '';
+  document.getElementById(prefix + 'Gstin').value = c.gstin || '';
+  document.getElementById(prefix + 'Pan').value = c.pan || '';
+}
+function saveCompanyForm(prefix, gstType){
+  KTG.CompanyProfile.save(gstType, {
+    name: document.getElementById(prefix + 'Name').value.trim(),
+    website: document.getElementById(prefix + 'Website').value.trim(),
+    phone: document.getElementById(prefix + 'Phone').value.trim(),
+    email: document.getElementById(prefix + 'Email').value.trim(),
+    address: document.getElementById(prefix + 'Address').value.trim(),
+    gstin: document.getElementById(prefix + 'Gstin').value.trim(),
+    pan: document.getElementById(prefix + 'Pan').value.trim()
+  });
+  KTG.toast(`${gstType === 'nongst' ? 'Non-GST' : 'GST'} company details saved.`, 'success', 'Saved');
+}
+function initCompanyProfileForms(){
+  fillCompanyForm('cpGst', 'gst');
+  fillCompanyForm('cpNonGst', 'nongst');
+  document.getElementById('saveCompanyGstBtn').addEventListener('click', () => saveCompanyForm('cpGst', 'gst'));
+  document.getElementById('saveCompanyNonGstBtn').addEventListener('click', () => saveCompanyForm('cpNonGst', 'nongst'));
+}
 JS;
 ?>
 <?php include __DIR__ . '/components/footer.php'; ?>

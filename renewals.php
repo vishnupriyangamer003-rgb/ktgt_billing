@@ -3,9 +3,6 @@ $pageTitle = "Renewals &amp; Hosting";
 $pageKey = "renewals";
 $extraHead = <<<'HTML'
 <style>
-.quick-filter-chip{ border:1.5px solid var(--border); border-radius: var(--radius-pill); padding:.4rem 1rem; font-size:12.5px; font-weight:700; background:#fff; color:var(--text-secondary); cursor:pointer; transition: all .15s var(--ease); }
-.quick-filter-chip:hover{ border-color: var(--primary-100); background: var(--primary-light); }
-.quick-filter-chip.active{ background: var(--primary); border-color: var(--primary); color:#fff; }
 .expiry-badge{ font-size:10.5px; font-weight:700; padding:.15rem .5rem; border-radius: var(--radius-pill); white-space:nowrap; }
 .link-cell{ max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:middle; }
 .gst-toggle-btn{ flex:1; border:2px solid var(--border); border-radius:12px; padding:.6rem; text-align:center; cursor:pointer; transition: all .18s var(--ease); background:#fff; }
@@ -41,11 +38,11 @@ include __DIR__ . '/components/header.php';
           </button>
           <div class="collapse" id="renewalFiltersBody">
             <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
-              <button type="button" class="quick-filter-chip" data-range="last_month">Last Month</button>
-              <button type="button" class="quick-filter-chip active" data-range="this_month">This Month</button>
-              <button type="button" class="quick-filter-chip" data-range="this_week">This Week</button>
-              <button type="button" class="quick-filter-chip" data-range="next_month">Next Month</button>
-              <button type="button" class="quick-filter-chip" data-range="custom">Custom Range</button>
+              <button type="button" class="quick-filter-chip" data-range="last_month"><i class="bi bi-calendar-minus"></i>Last Month</button>
+              <button type="button" class="quick-filter-chip active" data-range="this_month"><i class="bi bi-calendar-check"></i>This Month</button>
+              <button type="button" class="quick-filter-chip" data-range="this_week"><i class="bi bi-calendar-week"></i>This Week</button>
+              <button type="button" class="quick-filter-chip" data-range="next_month"><i class="bi bi-calendar-plus"></i>Next Month</button>
+              <button type="button" class="quick-filter-chip" data-range="custom"><i class="bi bi-sliders"></i>Custom Range</button>
               <input type="date" class="form-control d-none" id="fromDate" style="max-width:160px;" title="From date">
               <input type="date" class="form-control d-none" id="toDate" style="max-width:160px;" title="To date">
               <button class="btn btn-light ms-auto" id="clearFiltersBtn" title="Clear all filters"><i class="bi bi-x-lg"></i></button>
@@ -477,9 +474,9 @@ function calcGiTotals(){
   document.getElementById('giSgstAmt').textContent = KTG.money(Math.round(taxAmount/2));
   document.getElementById('giCgstAmt').textContent = KTG.money(Math.round(taxAmount/2));
   document.getElementById('giIgstAmt').textContent = KTG.money(Math.round(taxAmount));
-  document.getElementById('giSgstRow').style.display = taxType === 'sgst_cgst' ? 'flex' : 'none';
-  document.getElementById('giCgstRow').style.display = taxType === 'sgst_cgst' ? 'flex' : 'none';
-  document.getElementById('giIgstRow').style.display = taxType === 'igst' ? 'flex' : 'none';
+  document.getElementById('giSgstRow').classList.toggle('bt-hidden', taxType !== 'sgst_cgst');
+  document.getElementById('giCgstRow').classList.toggle('bt-hidden', taxType !== 'sgst_cgst');
+  document.getElementById('giIgstRow').classList.toggle('bt-hidden', taxType !== 'igst');
   document.getElementById('giTotal').textContent = KTG.money(Math.round(amount + taxAmount));
 }
 

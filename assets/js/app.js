@@ -250,6 +250,38 @@ const KTG = (() => {
     reset() { localStorage.removeItem(MASTERS_KEY); }
   };
 
+  /* ---------------- Company Profile (separate letterhead per GST / Non-GST) ----------------
+     A field left blank on the Settings page simply doesn't render on the letterhead — see
+     companyFieldsHtml() below — rather than showing an empty "Label:" line. */
+  const COMPANY_KEY = 'ktg_company_profile_v1';
+  const COMPANY_SEED = {
+    gst: {
+      name: "Knock The Globe Technologies", address: "4th Cross Rd, Vaiyapuri Nagar, Karur, Tamil Nadu 639002",
+      phone: "72001 23452", email: "knockus@knocktheglobe.com", website: "www.knocktheglobe.com",
+      gstin: "33ABCDE1234F1Z5", pan: "ABCDE1234F"
+    },
+    nongst: {
+      name: "Knock The Globe Technologies", address: "4th Cross Rd, Vaiyapuri Nagar, Karur, Tamil Nadu 639002",
+      phone: "72001 23452", email: "knockus@knocktheglobe.com", website: "www.knocktheglobe.com",
+      gstin: "", pan: ""
+    }
+  };
+  const CompanyProfile = {
+    _load() {
+      let c = JSON.parse(localStorage.getItem(COMPANY_KEY) || 'null');
+      if (!c) { c = JSON.parse(JSON.stringify(COMPANY_SEED)); localStorage.setItem(COMPANY_KEY, JSON.stringify(c)); }
+      if (!c.gst) c.gst = JSON.parse(JSON.stringify(COMPANY_SEED.gst));
+      if (!c.nongst) c.nongst = JSON.parse(JSON.stringify(COMPANY_SEED.nongst));
+      return c;
+    },
+    get(gstType) { return this._load()[gstType === 'nongst' ? 'nongst' : 'gst']; },
+    save(gstType, data) {
+      const c = this._load();
+      c[gstType === 'nongst' ? 'nongst' : 'gst'] = data;
+      localStorage.setItem(COMPANY_KEY, JSON.stringify(c));
+    }
+  };
+
   /* ---------------- Notifications (read / cleared state persisted) ---------------- */
   const NOTIF_KEY = 'ktg_notif_state_v1';
   function notifState() {
@@ -395,14 +427,16 @@ const KTG = (() => {
     /* Look up the label by matching value rather than trusting selectedIndex — a select whose
        only "selected" option is also disabled (our placeholder pattern) isn't reliably
        reflected in selectedIndex/value resolution the same way across all cases, so match
-       explicitly instead. */
+       explicitly instead. A page marks its placeholder option with data-placeholder="1"
+       (falls back to an empty-value disabled option if that attribute isn't present) — this
+       is checked independently of select.value so a mis-resolved selectedIndex can't hide it. */
     function refreshTrigger(select, trigger) {
       const label = trigger.querySelector('.ktg-ss-label');
       const options = Array.from(select.options);
-      const current = options.find(o => o.value === select.value) || options[0];
-      const placeholderOpt = options.find(o => o.value === '' && o.disabled);
-      const isPlaceholder = select.value === '' && !!placeholderOpt;
-      const text = isPlaceholder ? placeholderOpt.textContent : (current ? current.textContent : '');
+      const placeholderOpt = options.find(o => o.hasAttribute('data-placeholder')) || options.find(o => o.value === '' && o.disabled);
+      const current = options.find(o => o !== placeholderOpt && o.value === select.value);
+      const isPlaceholder = !current;
+      const text = isPlaceholder ? (placeholderOpt ? placeholderOpt.textContent : '') : current.textContent;
       label.textContent = text || 'Select...';
       label.classList.toggle('placeholder', isPlaceholder);
     }
@@ -1024,7 +1058,24 @@ const KTG = (() => {
     return { from: '', to: '' };
   }
 
-  return { DATA, qs, Auth, Masters, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable, nextInvoiceNumber, dueDays, relativeDaysLabel, dateRangeFor };
+  /* Builds the letterhead's right-hand block (doctype + GST + company + address + contact)
+     for the given tax mode, skipping any field left blank in Settings entirely rather than
+     rendering an empty "Label:" line. Shared by invoice-create.php's collapsed letterhead and
+     invoice-preview.php/quotation-preview.php's printed letterhead. */
+  function companyLetterheadHtml(gstType, docType) {
+    const c = CompanyProfile.get(gstType);
+    let html = `<div class="bill-doctype">${docType}</div>`;
+    if (c.gstin) html += `<div class="fs-12 text-muted">GST : ${c.gstin}</div>`;
+    if (c.name) html += `<div class="bl-company">${c.name}</div>`;
+    if (c.address) html += `<div class="bl-meta">${c.address.replace(/\n/g, '<br>')}</div>`;
+    const contact = [];
+    if (c.phone) contact.push(`Mobile: ${c.phone}`);
+    if (c.website) contact.push(c.website);
+    if (contact.length) html += `<div class="bl-meta mt-1">${contact.join('<br>')}</div>`;
+    return html;
+  }
+
+  return { DATA, qs, Auth, Masters, CompanyProfile, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable, nextInvoiceNumber, dueDays, relativeDaysLabel, dateRangeFor, companyLetterheadHtml };
 })();
 
 document.addEventListener('DOMContentLoaded', () => { KTG.loadLayout(); });

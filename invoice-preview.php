@@ -9,11 +9,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<link href="assets/css/style.css" rel="stylesheet">
+<link href="assets/css/style.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/style.css') ?: time(); ?>" rel="stylesheet">
 <style>
-  /* Notes/Bank/Totals block always sits at the bottom of the sheet, even for a 1-item invoice */
+  /* Notes/Bank/Totals block always sits at the bottom of the sheet, even for a 1-item invoice.
+     min-height must stay pinned to a full A4 page at print time too — the global .a4-page
+     print reset sets min-height:auto, which would otherwise collapse this flex container to
+     content height, breaking the bottom-pin (content jumps to the top, leaving blank paper
+     below instead of before it). */
   #billRoot{ display:flex; flex-direction:column; }
   #billRoot .bill-bottom-block{ margin-top:auto; }
+  @media print{ #billRoot{ min-height: 297mm; } }
 </style>
 </head>
 <body>
@@ -31,7 +36,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="assets/js/app.js"></script>
+<script src="assets/js/app.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/app.js') ?: time(); ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const raw = sessionStorage.getItem('ktg_invoice_preview');
@@ -64,20 +69,14 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="bl-logo mx-auto"><img src="assets/images/logo.png" alt="KTG"></div>
         <div class="bl-tagline">Give Us Your Hands …!</div>
       </div>
-      <div class="bl-right">
-        <div class="bill-doctype">${d.docType}</div>
-        <div class="fs-12 text-muted">GST : ${KTG.DATA.company.gst}</div>
-        <div class="bl-company">${KTG.DATA.company.name}</div>
-        <div class="bl-meta">4th Cross Rd, Vaiyapuri Nagar<br>Karur, Tamil Nadu 639002<br>India</div>
-        <div class="bl-meta mt-1">Mobile: 91 72001 23452<br>${KTG.DATA.company.website}</div>
-      </div>
+      <div class="bl-right">${KTG.companyLetterheadHtml(d.gstType || 'gst', d.docType)}</div>
     </div>
 
     <div class="row g-4 mb-4">
       <div class="col-md-6">
         <div class="bill-block-label">Bill To</div>
         <span class="bill-to-name">${d.customer.name}</span>
-        <div class="bill-to-meta">GST : ${d.customer.gst}<br>${d.customer.address}<br>${d.customer.mobile}</div>
+        <div class="bill-to-meta">${d.customer.gst ? `GST : ${d.customer.gst}<br>` : ''}${d.customer.address}<br>${d.customer.mobile}</div>
       </div>
       <div class="col-md-6">
         <table class="bill-meta-table w-100">

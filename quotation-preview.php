@@ -9,11 +9,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<link href="assets/css/style.css" rel="stylesheet">
+<link href="assets/css/style.css?v=<?php echo @filemtime(__DIR__ . '/assets/css/style.css') ?: time(); ?>" rel="stylesheet">
 <style>
-  /* Notes/Bank/Totals block always sits at the bottom of the sheet, even for a 1-item quotation */
+  /* Notes/Bank/Totals block always sits at the bottom of the sheet, even for a 1-item quotation.
+     min-height must stay pinned to a full A4 page at print time too — see invoice-preview.php
+     for the full explanation of why the global .a4-page print reset breaks this otherwise. */
   #billRoot{ display:flex; flex-direction:column; }
   #billRoot .bill-bottom-block{ margin-top:auto; }
+  @media print{ #billRoot{ min-height: 297mm; } }
 </style>
 </head>
 <body>
@@ -31,7 +34,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="assets/js/app.js"></script>
+<script src="assets/js/app.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/app.js') ?: time(); ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const raw = sessionStorage.getItem('ktg_quotation_preview');

@@ -308,6 +308,21 @@ a{ text-decoration: none; color: inherit; }
 .chip-rejected, .chip-overdue, .chip-cancelled, .chip-expired{ background: var(--danger-light); color: var(--danger); }
 .chip-inprogress{ background: var(--primary-light); color: var(--primary); }
 
+/* ============================================================
+   QUICK-FILTER CHIPS (date-range pickers on Invoices / Renewals)
+   ============================================================ */
+.quick-filter-chip{
+  display:inline-flex; align-items:center; gap:.4rem;
+  border:1.5px solid var(--border); border-radius: var(--radius-pill);
+  padding:.44rem 1.05rem; font-size:12.5px; font-weight:700;
+  background:#fff; color:var(--text-secondary);
+  cursor:pointer; transition: all .15s var(--ease);
+}
+.quick-filter-chip i{ font-size:12px; opacity:.75; }
+.quick-filter-chip:hover{ border-color: var(--primary-100); background: var(--primary-light); color: var(--primary); transform: translateY(-1px); }
+.quick-filter-chip.active{ background: var(--primary); border-color: var(--primary); color:#fff; box-shadow: 0 4px 10px -4px var(--primary); }
+.quick-filter-chip.active i{ opacity:1; }
+
 .priority-dot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:.4rem; }
 .priority-high{ background: var(--danger); }
 .priority-medium{ background: var(--warning); }
@@ -638,6 +653,10 @@ a{ text-decoration: none; color: inherit; }
 .bill-totals .bt-row{ display:contents; font-size:13.3px; }
 .bill-totals .bt-row > *:last-child{ justify-self:end; text-align:right; }
 .bill-totals .bt-grand > *{ font-size:1.15rem; font-weight:800; color:var(--primary); border-top:1.5px dashed var(--border); margin-top:.4rem; padding-top:.7rem; }
+/* Conditionally-shown rows (SGST/CGST/IGST/Round Off) must be hidden via this class, not an
+   inline style.display — an inline style always wins over display:contents and would pull
+   that row's two cells out of the shared grid, breaking column alignment for just that row. */
+.bill-totals .bt-row.bt-hidden{ display:none; }
 .item-row-card{ border:1px solid var(--border); border-radius: 12px; padding: .9rem; margin-bottom:.7rem; background: var(--surface-alt); }
 
 /* Preview modal (read-only rendered bill) */

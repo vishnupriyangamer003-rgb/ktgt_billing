@@ -36,12 +36,12 @@ include __DIR__ . '/components/header.php';
       <div class="section-card mb-3 fade-in-up">
         <div class="section-body py-3">
           <div class="d-flex flex-wrap gap-2 align-items-center">
-            <span class="bill-block-label mb-0 me-1">Filter by Date</span>
-            <button type="button" class="quick-filter-chip" data-range="last_month">Last Month</button>
-            <button type="button" class="quick-filter-chip" data-range="this_month">This Month</button>
-            <button type="button" class="quick-filter-chip" data-range="this_week">This Week</button>
-            <button type="button" class="quick-filter-chip" data-range="today">Today</button>
-            <button type="button" class="quick-filter-chip" data-range="custom">Custom Range</button>
+            <span class="bill-block-label mb-0 me-1"><i class="bi bi-calendar3-range me-1"></i>Filter by Date</span>
+            <button type="button" class="quick-filter-chip" data-range="last_month"><i class="bi bi-calendar-minus"></i>Last Month</button>
+            <button type="button" class="quick-filter-chip" data-range="this_month"><i class="bi bi-calendar-check"></i>This Month</button>
+            <button type="button" class="quick-filter-chip" data-range="this_week"><i class="bi bi-calendar-week"></i>This Week</button>
+            <button type="button" class="quick-filter-chip" data-range="today"><i class="bi bi-calendar-event"></i>Today</button>
+            <button type="button" class="quick-filter-chip" data-range="custom"><i class="bi bi-sliders"></i>Custom Range</button>
             <input type="date" class="form-control d-none" id="invFromDate" style="max-width:160px;" title="From date">
             <input type="date" class="form-control d-none" id="invToDate" style="max-width:160px;" title="To date">
             <button type="button" class="btn btn-light" id="invClearFilterBtn" title="Clear date filter"><i class="bi bi-x-lg"></i></button>

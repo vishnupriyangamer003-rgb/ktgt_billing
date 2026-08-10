@@ -188,7 +188,7 @@ function onCustomerChange(){
 
 function renderItems(){
   const services = KTG.Masters.services();
-  const serviceOptions = (it) => `<option value="" ${it.service ? '' : 'selected'} disabled>Select Service</option>` +
+  const serviceOptions = (it) => `<option value="" data-placeholder="1" ${it.service ? '' : 'selected'} disabled>Select Service</option>` +
     services.map(s => `<option value="${s.name}" ${s.name === it.service ? 'selected' : ''}>${s.name}</option>`).join('');
 
   document.getElementById('itemsBodyDesktop').innerHTML = items.map((it, i) => `
@@ -262,7 +262,7 @@ function calcTotals(){
   const roundOff = roundedTotal - rawTotal;
 
   document.getElementById('sumSubtotal').textContent = KTG.money(Math.round(subtotal));
-  document.getElementById('roundoffRow').style.display = Math.abs(roundOff) > 0.001 ? 'flex' : 'none';
+  document.getElementById('roundoffRow').classList.toggle('bt-hidden', Math.abs(roundOff) <= 0.001);
   document.getElementById('sumRoundoff').textContent = (roundOff >= 0 ? '+' : '−') + KTG.money(Math.abs(roundOff));
   document.getElementById('grandTotalInput').value = roundedTotal;
 }

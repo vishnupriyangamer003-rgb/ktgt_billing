@@ -80,7 +80,7 @@ include __DIR__ . '/components/header.php';
         <div class="bill-accordion-head" data-bs-toggle="collapse" data-bs-target="#letterheadBody" role="button" aria-expanded="false" aria-controls="letterheadBody" id="letterheadToggle">
           <div class="bah-title">
             <div class="bill-doctype" id="docTypeLabel">TAX INVOICE</div>
-            <span class="fs-12 text-muted">Knock The Globe Technologies &middot; GST : 33ABCDE1234F1Z5</span>
+            <span class="fs-12 text-muted" id="letterheadSummary">Knock The Globe Technologies</span>
           </div>
           <button class="btn btn-sm btn-light bah-toggle" type="button" tabindex="-1"><i class="bi bi-chevron-down me-1"></i>Company Details</button>
         </div>
@@ -90,12 +90,7 @@ include __DIR__ . '/components/header.php';
               <div class="bl-logo mx-auto"><img src="assets/images/logo.png" alt="KTG"></div>
               <div class="bl-tagline">Give Us Your Hands …!</div>
             </div>
-            <div class="bl-right">
-              <div class="fs-12 text-muted">GST : 33ABCDE1234F1Z5</div>
-              <div class="bl-company">Knock The Globe Technologies</div>
-              <div class="bl-meta">4th Cross Rd, Vaiyapuri Nagar<br>Karur, Tamil Nadu 639002<br>India</div>
-              <div class="bl-meta mt-1">Mobile: 91 72001 23452<br>www.knocktheglobe.com</div>
-            </div>
+            <div class="bl-right" id="letterheadCompanyBlock"></div>
           </div>
         </div>
 
@@ -207,6 +202,7 @@ function init(){
   items = [emptyItem()];
   renderItems();
   refreshInvoiceNumber();
+  refreshLetterhead();
 
   document.getElementById('addItemBtn').addEventListener('click', () => {
     items.push(emptyItem());
@@ -228,11 +224,20 @@ function onCustomerChange(){
   const meta = document.getElementById('customerMeta');
   document.getElementById('paymentEntryLink').href = name ? `payments.php?customer=${encodeURIComponent(name)}` : 'payments.php';
   if (!c) { meta.textContent = 'Select a customer to auto-fill billing details.'; return; }
-  meta.innerHTML = `<span class="bill-to-name">${c.name}</span><br>GST : ${c.gst}<br>${c.address}<br>${c.mobile}`;
+  const gstLine = gstEnabled ? `GST : ${c.gst}<br>` : '';
+  meta.innerHTML = `<span class="bill-to-name">${c.name}</span><br>${gstLine}${c.address}<br>${c.mobile}`;
 }
 
 function refreshInvoiceNumber(){
   document.getElementById('invNumberDisplay').textContent = KTG.nextInvoiceNumber(gstEnabled ? 'gst' : 'nongst');
+}
+
+function refreshLetterhead(){
+  const docType = gstEnabled ? 'TAX INVOICE' : 'BILL OF SUPPLY';
+  const gstType = gstEnabled ? 'gst' : 'nongst';
+  document.getElementById('letterheadCompanyBlock').innerHTML = KTG.companyLetterheadHtml(gstType, docType);
+  const c = KTG.CompanyProfile.get(gstType);
+  document.getElementById('letterheadSummary').textContent = c.name || '';
 }
 
 function setGst(state){
@@ -242,12 +247,14 @@ function setGst(state){
   document.getElementById('gstOptionsWrap').style.display = state ? 'block' : 'none';
   document.getElementById('docTypeLabel').textContent = state ? 'TAX INVOICE' : 'BILL OF SUPPLY';
   refreshInvoiceNumber();
+  refreshLetterhead();
+  onCustomerChange();
   calcTotals();
 }
 
 function renderItems(){
   const services = KTG.Masters.services();
-  const serviceOptions = (it) => `<option value="" ${it.service ? '' : 'selected'} disabled>Select Service</option>` +
+  const serviceOptions = (it) => `<option value="" data-placeholder="1" ${it.service ? '' : 'selected'} disabled>Select Service</option>` +
     services.map(s => `<option value="${s.name}" ${s.name === it.service ? 'selected' : ''}>${s.name}</option>`).join('');
 
   document.getElementById('itemsBodyDesktop').innerHTML = items.map((it, i) => `
@@ -341,10 +348,10 @@ function calcTotals(){
   document.getElementById('sumSgst').textContent = KTG.money(Math.round(taxAmount/2));
   document.getElementById('sumCgst').textContent = KTG.money(Math.round(taxAmount/2));
   document.getElementById('sumIgst').textContent = KTG.money(Math.round(taxAmount));
-  document.getElementById('sgstRow').style.display = taxType === 'sgst_cgst' ? 'flex' : 'none';
-  document.getElementById('cgstRow').style.display = taxType === 'sgst_cgst' ? 'flex' : 'none';
-  document.getElementById('igstRow').style.display = taxType === 'igst' ? 'flex' : 'none';
-  document.getElementById('roundoffRow').style.display = Math.abs(roundOff) > 0.001 ? 'flex' : 'none';
+  document.getElementById('sgstRow').classList.toggle('bt-hidden', taxType !== 'sgst_cgst');
+  document.getElementById('cgstRow').classList.toggle('bt-hidden', taxType !== 'sgst_cgst');
+  document.getElementById('igstRow').classList.toggle('bt-hidden', taxType !== 'igst');
+  document.getElementById('roundoffRow').classList.toggle('bt-hidden', Math.abs(roundOff) <= 0.001);
   document.getElementById('sumRoundoff').textContent = (roundOff >= 0 ? '+' : '−') + KTG.money(Math.abs(roundOff));
   document.getElementById('grandTotalInput').value = roundedTotal;
   document.getElementById('sumBalance').textContent = KTG.money(due);
@@ -376,10 +383,11 @@ function openPreview(autoprint){
 
   const data = {
     docType: document.getElementById('docTypeLabel').textContent,
+    gstType: gstEnabled ? 'gst' : 'nongst',
     invNumber: document.getElementById('invNumberDisplay').textContent,
     invDate: document.getElementById('invDate').value,
     dueDate: document.getElementById('dueDate').value,
-    customer: c ? {name: c.name, gst: c.gst, address: c.address, mobile: c.mobile} : {name: name || '—', gst: '—', address: '—', mobile: '—'},
+    customer: c ? {name: c.name, gst: gstEnabled ? c.gst : '', address: c.address, mobile: c.mobile} : {name: name || '—', gst: '', address: '—', mobile: '—'},
     items: realItems,
     subtotal: Math.round(subtotal), discount: Math.round(discount),
     taxType, percent, halfPercent: percent/2, taxAmount: Math.round(taxAmount), roundOff,
