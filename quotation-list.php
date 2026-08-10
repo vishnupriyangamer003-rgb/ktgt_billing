@@ -35,7 +35,8 @@ include __DIR__ . '/components/header.php';
               <i class="bi bi-search position-absolute" style="left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
               <input type="text" id="quoSearch" class="form-control ps-5" placeholder="Search quotation #, customer...">
             </div>
-            <input type="date" class="form-control" style="max-width:160px;">
+            <input type="date" class="form-control" id="quoFromDate" style="max-width:160px;" title="From date">
+            <input type="date" class="form-control" id="quoToDate" style="max-width:160px;" title="To date">
             <select class="form-select" style="max-width:160px;"><option>All Amount</option><option>Below ₹1L</option><option>₹1L–₹5L</option><option>Above ₹5L</option></select>
             <button class="btn btn-light ms-auto"><i class="bi bi-filetype-xlsx me-1"></i>Excel</button>
             <button class="btn btn-light"><i class="bi bi-filetype-pdf me-1"></i>PDF</button>
@@ -55,7 +56,7 @@ include __DIR__ . '/components/header.php';
         <div class="table-responsive">
           <table class="table table-modern mb-0">
             <thead>
-              <tr><th><input type="checkbox" class="form-check-input"></th><th>Quotation #</th><th>Customer</th><th>Date</th><th>Expiry</th><th>Amount</th><th>Status</th><th></th></tr>
+              <tr><th><input type="checkbox" class="form-check-input"></th><th>Quotation #</th><th>Customer</th><th>Date</th><th>Expiry</th><th>Days</th><th>Amount</th><th>Status</th><th></th></tr>
             </thead>
             <tbody id="quoTableBody"></tbody>
           </table>
@@ -82,6 +83,8 @@ const STATUS_COLOR = {draft:'secondary', sent:'info', viewed:'purple', approved:
 function init(){
   render(KTG.DATA.quotations);
   document.getElementById('quoSearch').addEventListener('input', applyFilters);
+  document.getElementById('quoFromDate').addEventListener('change', applyFilters);
+  document.getElementById('quoToDate').addEventListener('change', applyFilters);
   document.querySelectorAll('#statusTabs .nav-link').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#statusTabs .nav-link').forEach(b => b.classList.remove('active'));
@@ -104,10 +107,14 @@ function toggleView(mode){
 
 function applyFilters(){
   const q = document.getElementById('quoSearch').value.toLowerCase();
+  const from = document.getElementById('quoFromDate').value;
+  const to = document.getElementById('quoToDate').value;
   const filtered = KTG.DATA.quotations.filter(item => {
     const matchQ = !q || item.id.toLowerCase().includes(q) || item.customer.toLowerCase().includes(q);
     const matchStatus = !activeStatus || item.status === activeStatus;
-    return matchQ && matchStatus;
+    const matchFrom = !from || item.date >= from;
+    const matchTo = !to || item.date <= to;
+    return matchQ && matchStatus && matchFrom && matchTo;
   });
   render(filtered);
 }
@@ -125,7 +132,8 @@ function render(list){
         </div>
         <a href="quotation-create.php" class="cell-title d-block fs-14 mb-1">${q.id}</a>
         <div class="cell-sub mb-2">${q.customer}</div>
-        <div class="fs-12 text-secondary mb-3"><i class="bi bi-calendar3 me-2 text-muted"></i>${q.date} &rarr; ${q.expiry}</div>
+        <div class="fs-12 text-secondary mb-1"><i class="bi bi-calendar3 me-2 text-muted"></i>${q.date} &rarr; ${q.expiry}</div>
+        <div class="fs-12 text-secondary mb-3"><i class="bi bi-clock-history me-2 text-muted"></i>${KTG.relativeDaysLabel(q.expiry)}</div>
         <div class="d-flex justify-content-between align-items-center">
           <span class="dg-amt">${KTG.money(q.amount)}</span>
           <div class="dropdown">
@@ -151,6 +159,7 @@ function render(list){
       <td>${q.customer}</td>
       <td class="fs-13">${q.date}</td>
       <td class="fs-13">${q.expiry}</td>
+      <td class="fs-13">${KTG.relativeDaysLabel(q.expiry)}</td>
       <td class="fw-600">${KTG.money(q.amount)}</td>
       <td><span class="chip chip-${q.status}">${q.status}</span></td>
       <td>
@@ -168,7 +177,7 @@ function render(list){
           </div>
         </div>
       </td>
-    </tr>`).join('') || `<tr><td colspan="8"><div class="empty-state"><div class="es-icon"><i class="bi bi-file-earmark-text"></i></div><h6>No quotations found</h6><p>Try a different search or status filter.</p></div></td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="9"><div class="empty-state"><div class="es-icon"><i class="bi bi-file-earmark-text"></i></div><h6>No quotations found</h6><p>Try a different search or status filter.</p></div></td></tr>`;
   KTG.makeResponsiveTable(document.getElementById('quoTableBody').closest('table'));
 }
 JS;

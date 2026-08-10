@@ -392,17 +392,19 @@ const KTG = (() => {
       openState = null;
     }
 
-    function labelFor(select) {
-      const opt = select.options[select.selectedIndex];
-      return opt ? opt.textContent : '';
-    }
-
+    /* Look up the label by matching value rather than trusting selectedIndex — a select whose
+       only "selected" option is also disabled (our placeholder pattern) isn't reliably
+       reflected in selectedIndex/value resolution the same way across all cases, so match
+       explicitly instead. */
     function refreshTrigger(select, trigger) {
       const label = trigger.querySelector('.ktg-ss-label');
-      const opt = select.options[select.selectedIndex];
-      const isPlaceholder = !select.value && opt && opt.disabled;
-      label.textContent = labelFor(select) || 'Select...';
-      label.classList.toggle('placeholder', !!isPlaceholder);
+      const options = Array.from(select.options);
+      const current = options.find(o => o.value === select.value) || options[0];
+      const placeholderOpt = options.find(o => o.value === '' && o.disabled);
+      const isPlaceholder = select.value === '' && !!placeholderOpt;
+      const text = isPlaceholder ? placeholderOpt.textContent : (current ? current.textContent : '');
+      label.textContent = text || 'Select...';
+      label.classList.toggle('placeholder', isPlaceholder);
     }
 
     function openPanel(select, trigger) {
@@ -985,7 +987,44 @@ const KTG = (() => {
     return Math.round((due - today) / 86400000);
   }
 
-  return { DATA, qs, Auth, Masters, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable, nextInvoiceNumber, dueDays };
+  /* Compact relative-day label: "6ago" if past, "Today" if today, "6d left" if upcoming. */
+  function relativeDaysLabel(dateStr){
+    const d = dueDays(dateStr);
+    if (d < 0) return `${Math.abs(d)}ago`;
+    if (d === 0) return 'Today';
+    return `${d}d left`;
+  }
+
+  function ymd(dt){
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  }
+
+  /* Shared quick date-range calculator (today / this_week / last_month / this_month / next_month)
+     used by the Invoices and Renewals quick-filter chips. Uses local Y-M-D formatting throughout
+     (not toISOString, which shifts by the timezone offset and can land on the wrong day). */
+  function dateRangeFor(key){
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (key === 'today') return { from: ymd(today), to: ymd(today) };
+    if (key === 'this_week') {
+      const day = today.getDay();
+      const monday = new Date(today); monday.setDate(today.getDate() + (day === 0 ? -6 : 1 - day));
+      const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+      return { from: ymd(monday), to: ymd(sunday) };
+    }
+    if (key === 'last_month') {
+      return { from: ymd(new Date(today.getFullYear(), today.getMonth() - 1, 1)), to: ymd(new Date(today.getFullYear(), today.getMonth(), 0)) };
+    }
+    if (key === 'this_month') {
+      return { from: ymd(new Date(today.getFullYear(), today.getMonth(), 1)), to: ymd(new Date(today.getFullYear(), today.getMonth() + 1, 0)) };
+    }
+    if (key === 'next_month') {
+      return { from: ymd(new Date(today.getFullYear(), today.getMonth() + 1, 1)), to: ymd(new Date(today.getFullYear(), today.getMonth() + 2, 0)) };
+    }
+    return { from: '', to: '' };
+  }
+
+  return { DATA, qs, Auth, Masters, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable, nextInvoiceNumber, dueDays, relativeDaysLabel, dateRangeFor };
 })();
 
 document.addEventListener('DOMContentLoaded', () => { KTG.loadLayout(); });

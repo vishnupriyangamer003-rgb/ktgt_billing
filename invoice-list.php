@@ -36,10 +36,15 @@ include __DIR__ . '/components/header.php';
       <div class="section-card mb-3 fade-in-up">
         <div class="section-body py-3">
           <div class="d-flex flex-wrap gap-2 align-items-center">
-            <div class="position-relative flex-grow-1" style="min-width:220px; max-width:340px;">
-              <i class="bi bi-search position-absolute" style="left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
-              <input type="text" id="invSearch" class="form-control ps-5" placeholder="Search invoice #, customer...">
-            </div>
+            <span class="bill-block-label mb-0 me-1">Filter by Date</span>
+            <button type="button" class="quick-filter-chip" data-range="last_month">Last Month</button>
+            <button type="button" class="quick-filter-chip" data-range="this_month">This Month</button>
+            <button type="button" class="quick-filter-chip" data-range="this_week">This Week</button>
+            <button type="button" class="quick-filter-chip" data-range="today">Today</button>
+            <button type="button" class="quick-filter-chip" data-range="custom">Custom Range</button>
+            <input type="date" class="form-control d-none" id="invFromDate" style="max-width:160px;" title="From date">
+            <input type="date" class="form-control d-none" id="invToDate" style="max-width:160px;" title="To date">
+            <button type="button" class="btn btn-light" id="invClearFilterBtn" title="Clear date filter"><i class="bi bi-x-lg"></i></button>
             <button class="btn btn-light ms-auto"><i class="bi bi-filetype-xlsx me-1"></i>Excel</button>
             <button class="btn btn-light"><i class="bi bi-filetype-pdf me-1"></i>PDF</button>
             <button class="btn btn-light"><i class="bi bi-printer me-1"></i>Print</button>
@@ -47,9 +52,10 @@ include __DIR__ . '/components/header.php';
         </div>
       </div>
 
-      <!-- GST / Non-GST split — sits directly above the datatable -->
+      <!-- Show All / GST / Non-GST split — sits directly above the datatable -->
       <ul class="nav nav-pills-soft gap-2 mb-3 fade-in-up" id="gstTabs">
-        <li class="nav-item"><button class="nav-link active" data-gst="gst"><i class="bi bi-receipt-cutoff me-1"></i>GST Invoices</button></li>
+        <li class="nav-item"><button class="nav-link active" data-gst="all"><i class="bi bi-collection me-1"></i>Show All</button></li>
+        <li class="nav-item"><button class="nav-link" data-gst="gst"><i class="bi bi-receipt-cutoff me-1"></i>GST Invoices</button></li>
         <li class="nav-item"><button class="nav-link" data-gst="nongst"><i class="bi bi-receipt me-1"></i>Non-GST Invoices</button></li>
       </ul>
 
@@ -63,7 +69,7 @@ include __DIR__ . '/components/header.php';
       <div class="section-card fade-in-up" id="tableView">
         <div class="table-responsive">
           <table class="table table-modern mb-0">
-            <thead><tr><th><input type="checkbox" class="form-check-input"></th><th>Invoice #</th><th>Customer</th><th>Date</th><th>Due Date</th><th>Due Days</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th><input type="checkbox" class="form-check-input"></th><th>Invoice #</th><th>Customer</th><th>Date</th><th>Days</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead>
             <tbody id="invTableBody"></tbody>
           </table>
         </div>
@@ -97,7 +103,7 @@ HTML;
 $pageScript = <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(init, 150));
 let activeStatus = '';
-let activeGst = 'gst';
+let activeGst = 'all';
 
 function openPaymentPopup(customer){
   document.getElementById('paymentPopupFrame').src = 'payments.php?embed=1&customer=' + customer;
@@ -111,7 +117,6 @@ const STATUS_COLOR = {paid:'success', pending:'warning', partial:'primary', over
 
 function init(){
   applyFilters();
-  document.getElementById('invSearch').addEventListener('input', applyFilters);
   document.querySelectorAll('#statusTabs .nav-link').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#statusTabs .nav-link').forEach(b => b.classList.remove('active'));
@@ -128,6 +133,31 @@ function init(){
       applyFilters();
     });
   });
+  document.querySelectorAll('.quick-filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.quick-filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      const isCustom = chip.dataset.range === 'custom';
+      document.getElementById('invFromDate').classList.toggle('d-none', !isCustom);
+      document.getElementById('invToDate').classList.toggle('d-none', !isCustom);
+      if (!isCustom) {
+        const { from, to } = KTG.dateRangeFor(chip.dataset.range);
+        document.getElementById('invFromDate').value = from;
+        document.getElementById('invToDate').value = to;
+      }
+      applyFilters();
+    });
+  });
+  document.getElementById('invFromDate').addEventListener('change', applyFilters);
+  document.getElementById('invToDate').addEventListener('change', applyFilters);
+  document.getElementById('invClearFilterBtn').addEventListener('click', () => {
+    document.querySelectorAll('.quick-filter-chip').forEach(c => c.classList.remove('active'));
+    document.getElementById('invFromDate').value = '';
+    document.getElementById('invToDate').value = '';
+    document.getElementById('invFromDate').classList.add('d-none');
+    document.getElementById('invToDate').classList.add('d-none');
+    applyFilters();
+  });
   document.getElementById('viewGridBtn').addEventListener('click', () => toggleView('grid'));
   document.getElementById('viewTableBtn').addEventListener('click', () => toggleView('table'));
 }
@@ -140,21 +170,20 @@ function toggleView(mode){
 }
 function dueDaysLabel(inv){
   if (inv.status === 'paid' || inv.status === 'cancelled') return '<span class="text-muted">—</span>';
-  const d = KTG.dueDays(inv.due);
-  if (d < 0) return `<span class="text-danger fw-600">Overdue ${Math.abs(d)}d</span>`;
-  if (d === 0) return `<span class="text-warning fw-600">Due today</span>`;
-  return `<span class="text-muted">${d}d left</span>`;
+  return `<span class="fw-600">${KTG.relativeDaysLabel(inv.due)}</span>`;
 }
 function applyFilters(){
-  const q = document.getElementById('invSearch').value.toLowerCase();
-  const gstScoped = KTG.DATA.invoices.filter(i => i.gstType === activeGst);
+  const from = document.getElementById('invFromDate').value;
+  const to = document.getElementById('invToDate').value;
+  const gstScoped = activeGst === 'all' ? KTG.DATA.invoices : KTG.DATA.invoices.filter(i => i.gstType === activeGst);
 
   updateStats(gstScoped);
 
   const filtered = gstScoped.filter(item => {
-    const matchQ = !q || item.id.toLowerCase().includes(q) || item.customer.toLowerCase().includes(q);
     const matchStatus = !activeStatus || item.status === activeStatus;
-    return matchQ && matchStatus;
+    const matchFrom = !from || item.date >= from;
+    const matchTo = !to || item.date <= to;
+    return matchStatus && matchFrom && matchTo;
   });
   render(filtered);
 }
@@ -170,6 +199,7 @@ function render(list){
 
   document.getElementById('gridView').innerHTML = list.map(inv => {
     const balance = inv.amount - inv.paid;
+    const custArg = encodeURIComponent(inv.customer);
     return `
     <div class="col-sm-6 col-xl-4">
       <div class="doc-grid-card st-${inv.status}">
@@ -179,16 +209,16 @@ function render(list){
         </div>
         <a href="invoice-create.php" class="cell-title d-block fs-14 mb-1">${inv.id}</a>
         <div class="cell-sub mb-2">${inv.customer}</div>
-        <div class="fs-12 text-secondary mb-1"><i class="bi bi-calendar3 me-2 text-muted"></i>${inv.date} &middot; Due ${inv.due}</div>
+        <div class="fs-12 text-secondary mb-1"><i class="bi bi-calendar3 me-2 text-muted"></i>${inv.date}</div>
         <div class="fs-12 mb-2">${dueDaysLabel(inv)}</div>
         <div class="d-flex justify-content-between fs-12 text-secondary mb-3">
-          <span><i class="bi bi-check2 me-1 text-success"></i>Paid ${KTG.moneyShort(inv.paid)}</span>
-          ${balance > 0 ? `<span class="text-danger fw-600">Bal ${KTG.moneyShort(balance)}</span>` : ''}
+          <span style="cursor:pointer;" onclick="openPaymentPopup('${custArg}')" title="Add Payment"><i class="bi bi-check2 me-1 text-success"></i>Paid ${KTG.moneyShort(inv.paid)}</span>
+          ${balance > 0 ? `<span class="text-danger fw-600" style="cursor:pointer;" onclick="openPaymentPopup('${custArg}')" title="Add Payment">Bal ${KTG.moneyShort(balance)}</span>` : ''}
         </div>
         <div class="d-flex justify-content-between align-items-center">
-          <span class="dg-amt">${KTG.money(inv.amount)}</span>
+          <span class="dg-amt" style="cursor:pointer;" onclick="openPaymentPopup('${custArg}')" title="Add Payment">${KTG.money(inv.amount)}</span>
           <div class="d-flex gap-1">
-            <button type="button" class="btn btn-sm btn-soft-primary" onclick="openPaymentPopup('${encodeURIComponent(inv.customer)}')" title="Add Payment"><i class="bi bi-cash-coin"></i></button>
+            <button type="button" class="btn btn-sm btn-soft-primary" onclick="openPaymentPopup('${custArg}')" title="Add Payment"><i class="bi bi-cash-coin"></i></button>
             <div class="dropdown">
               <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
               <div class="dropdown-menu dropdown-menu-end">
@@ -203,25 +233,25 @@ function render(list){
         </div>
       </div>
     </div>`;
-  }).join('') || `<div class="col-12"><div class="section-card"><div class="empty-state"><div class="es-icon"><i class="bi bi-receipt"></i></div><h6>No invoices found</h6><p>Try a different search or status filter.</p></div></div></div>`;
+  }).join('') || `<div class="col-12"><div class="section-card"><div class="empty-state"><div class="es-icon"><i class="bi bi-receipt"></i></div><h6>No invoices found</h6><p>Try a different date range or status filter.</p></div></div></div>`;
 
   document.getElementById('invTableBody').innerHTML = list.map(inv => {
     const balance = inv.amount - inv.paid;
+    const custArg = encodeURIComponent(inv.customer);
     return `
     <tr>
       <td><input type="checkbox" class="form-check-input"></td>
       <td><a href="invoice-create.php" class="cell-title">${inv.id}</a></td>
       <td>${inv.customer}</td>
       <td class="fs-13">${inv.date}</td>
-      <td class="fs-13">${inv.due}</td>
       <td class="fs-13">${dueDaysLabel(inv)}</td>
-      <td class="fw-600">${KTG.money(inv.amount)}</td>
-      <td class="text-success fw-600">${KTG.money(inv.paid)}</td>
-      <td class="fw-600 ${balance>0?'text-danger':''}">${KTG.money(balance)}</td>
+      <td class="fw-600" style="cursor:pointer;" onclick="openPaymentPopup('${custArg}')" title="Add Payment">${KTG.money(inv.amount)}</td>
+      <td class="text-success fw-600" style="cursor:pointer;" onclick="openPaymentPopup('${custArg}')" title="Add Payment">${KTG.money(inv.paid)}</td>
+      <td class="fw-600 ${balance>0?'text-danger':''}" style="cursor:pointer;" onclick="openPaymentPopup('${custArg}')" title="Add Payment">${KTG.money(balance)}</td>
       <td><span class="chip chip-${inv.status}">${inv.status}</span></td>
       <td>
         <div class="d-flex gap-1">
-          <button type="button" class="btn btn-sm btn-soft-primary" onclick="openPaymentPopup('${encodeURIComponent(inv.customer)}')" title="Add Payment"><i class="bi bi-cash-coin"></i></button>
+          <button type="button" class="btn btn-sm btn-soft-primary" onclick="openPaymentPopup('${custArg}')" title="Add Payment"><i class="bi bi-cash-coin"></i></button>
           <div class="dropdown">
             <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
             <div class="dropdown-menu dropdown-menu-end">
@@ -236,7 +266,7 @@ function render(list){
         </div>
       </td>
     </tr>`;
-  }).join('') || `<tr><td colspan="11"><div class="empty-state"><div class="es-icon"><i class="bi bi-receipt"></i></div><h6>No invoices found</h6><p>Try a different search or status filter.</p></div></td></tr>`;
+  }).join('') || `<tr><td colspan="10"><div class="empty-state"><div class="es-icon"><i class="bi bi-receipt"></i></div><h6>No invoices found</h6><p>Try a different date range or status filter.</p></div></td></tr>`;
   KTG.makeResponsiveTable(document.getElementById('invTableBody').closest('table'));
 }
 JS;

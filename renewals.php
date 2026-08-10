@@ -32,19 +32,6 @@ include __DIR__ . '/components/header.php';
         <div class="col-6 col-md-3"><div class="stat-card accent-success"><div class="stat-icon bg-soft-success"><i class="bi bi-check-circle-fill"></i></div><div class="stat-label">Paid</div><div class="stat-value" id="statPaid">0</div></div></div>
       </div>
 
-      <!-- Expiry quick filters -->
-      <div class="section-card mb-3 fade-in-up">
-        <div class="section-body py-3">
-          <div class="d-flex flex-wrap align-items-center gap-2">
-            <span class="bill-block-label mb-0 me-1">Domain / Renewal Expiry</span>
-            <button class="quick-filter-chip" data-range="last">Last Month</button>
-            <button class="quick-filter-chip active" data-range="this">This Month</button>
-            <button class="quick-filter-chip" data-range="next">Next Month</button>
-            <button class="quick-filter-chip" data-range="all">Any Time</button>
-          </div>
-        </div>
-      </div>
-
       <!-- Filters — collapsed by default; expand to search/filter -->
       <div class="section-card mb-3 fade-in-up">
         <div class="section-body py-3">
@@ -53,23 +40,19 @@ include __DIR__ . '/components/header.php';
             <i class="bi bi-chevron-down"></i>
           </button>
           <div class="collapse" id="renewalFiltersBody">
-            <div class="row g-2 align-items-end mt-2">
-              <div class="col-md-5">
-                <label class="form-label mb-1">Search</label>
-                <div class="position-relative">
-                  <i class="bi bi-search position-absolute" style="left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
-                  <input type="text" class="form-control ps-5" id="searchInput" placeholder="Search project, customer or live link...">
-                </div>
-              </div>
-              <div class="col-md-3"><label class="form-label mb-1">Hosted On (Server)</label><select class="form-select" id="serverFilter"><option value="">All Servers</option></select></div>
-              <div class="col-md-3"><label class="form-label mb-1">Paid Status</label><select class="form-select" id="statusFilter"><option value="">All Status</option></select></div>
-              <div class="col-md-1"><button class="btn btn-light w-100" id="clearFiltersBtn" title="Clear all filters"><i class="bi bi-x-lg"></i></button></div>
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+              <button type="button" class="quick-filter-chip" data-range="last_month">Last Month</button>
+              <button type="button" class="quick-filter-chip active" data-range="this_month">This Month</button>
+              <button type="button" class="quick-filter-chip" data-range="this_week">This Week</button>
+              <button type="button" class="quick-filter-chip" data-range="next_month">Next Month</button>
+              <button type="button" class="quick-filter-chip" data-range="custom">Custom Range</button>
+              <input type="date" class="form-control d-none" id="fromDate" style="max-width:160px;" title="From date">
+              <input type="date" class="form-control d-none" id="toDate" style="max-width:160px;" title="To date">
+              <button class="btn btn-light ms-auto" id="clearFiltersBtn" title="Clear all filters"><i class="bi bi-x-lg"></i></button>
             </div>
-            <div class="row g-2 align-items-end mt-2">
-              <div class="col-md-2"><label class="form-label mb-1">From</label><input type="date" class="form-control" id="fromDate"></div>
-              <div class="col-md-2"><label class="form-label mb-1">To</label><input type="date" class="form-control" id="toDate"></div>
-              <div class="col-md-4"><label class="form-label mb-1">Customer</label><select class="form-select" id="customerFilter"><option value="">All Customers</option></select></div>
-              <div class="col-md-4"><label class="form-label mb-1">Project Type</label><select class="form-select" id="typeFilter"><option value="">All Types</option></select></div>
+            <div class="row g-2 align-items-end mt-3">
+              <div class="col-md-6"><label class="form-label mb-1">Customer</label><select class="form-select" id="customerFilter"><option value="">All Customers</option></select></div>
+              <div class="col-md-6"><label class="form-label mb-1">Paid Status</label><select class="form-select" id="statusFilter"><option value="">All Status</option></select></div>
             </div>
           </div>
         </div>
@@ -205,9 +188,7 @@ function init(){
 
   const custNames = [...new Set(KTG.DATA.projects.map(p => p.customer))];
   document.getElementById('customerFilter').innerHTML = '<option value="">All Customers</option>' + custNames.map(n => `<option>${n}</option>`).join('');
-  document.getElementById('typeFilter').innerHTML = '<option value="">All Types</option>' + KTG.Masters.projectTypes().map(t => `<option>${t}</option>`).join('');
   document.getElementById('statusFilter').innerHTML = '<option value="">All Status</option>' + KTG.Masters.paidStatusTypes().map(t => `<option>${t}</option>`).join('');
-  document.getElementById('serverFilter').innerHTML = '<option value="">All Servers</option>' + KTG.Masters.servers().map(s => `<option>${s}</option>`).join('');
 
   document.getElementById('giTaxRate').innerHTML = KTG.Masters.taxes().filter(t => t.percent > 0).map(t => `<option value="${t.percent}">${t.name}</option>`).join('');
 
@@ -218,10 +199,9 @@ function init(){
       applyQuickRange(chip.dataset.range);
     });
   });
-  ['fromDate','toDate','customerFilter','typeFilter','statusFilter','serverFilter'].forEach(id => {
+  ['fromDate','toDate','customerFilter','statusFilter'].forEach(id => {
     document.getElementById(id).addEventListener('change', render);
   });
-  document.getElementById('searchInput').addEventListener('input', render);
   document.getElementById('clearFiltersBtn').addEventListener('click', clearFilters);
 
   document.getElementById('newRenewalBtn').addEventListener('click', () => openModal(null));
@@ -245,22 +225,15 @@ function init(){
     openInvoiceModal(viewIndex);
   });
 
-  applyQuickRange('this');
-}
-
-function monthRange(offset){
-  const d = new Date(TODAY.getFullYear(), TODAY.getMonth() + offset, 1);
-  const from = new Date(d.getFullYear(), d.getMonth(), 1);
-  const to = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  const fmt = (dt) => dt.toISOString().slice(0,10);
-  return { from: fmt(from), to: fmt(to) };
+  applyQuickRange('this_month');
 }
 
 function applyQuickRange(range){
-  if (range === 'all') { document.getElementById('fromDate').value = ''; document.getElementById('toDate').value = ''; }
-  else {
-    const offset = range === 'last' ? -1 : range === 'next' ? 1 : 0;
-    const { from, to } = monthRange(offset);
+  const isCustom = range === 'custom';
+  document.getElementById('fromDate').classList.toggle('d-none', !isCustom);
+  document.getElementById('toDate').classList.toggle('d-none', !isCustom);
+  if (!isCustom) {
+    const { from, to } = KTG.dateRangeFor(range);
     document.getElementById('fromDate').value = from;
     document.getElementById('toDate').value = to;
   }
@@ -283,17 +256,12 @@ function render(){
   const from = document.getElementById('fromDate').value;
   const to = document.getElementById('toDate').value;
   const customer = document.getElementById('customerFilter').value;
-  const type = document.getElementById('typeFilter').value;
   const status = document.getElementById('statusFilter').value;
-  const server = document.getElementById('serverFilter').value;
-  const q = document.getElementById('searchInput').value.trim().toLowerCase();
 
   const filtered = renewalsList.filter(r =>
     (!from || r.expiryDate >= from) && (!to || r.expiryDate <= to) &&
     (!customer || r.customer === customer) &&
-    (!type || r.type === type) && (!status || r.paidStatus === status) &&
-    (!server || r.server === server) &&
-    (!q || r.project.toLowerCase().includes(q) || r.customer.toLowerCase().includes(q) || r.liveLink.toLowerCase().includes(q) || r.server.toLowerCase().includes(q))
+    (!status || r.paidStatus === status)
   );
 
   document.getElementById('resultsCount').textContent = filtered.length + ' entries';
@@ -333,16 +301,11 @@ function render(){
 }
 
 function clearFilters(){
-  document.getElementById('searchInput').value = '';
-  document.getElementById('serverFilter').value = '';
   document.getElementById('statusFilter').value = '';
   document.getElementById('customerFilter').value = '';
-  document.getElementById('typeFilter').value = '';
   document.querySelectorAll('.quick-filter-chip').forEach(c => c.classList.remove('active'));
-  document.querySelector('.quick-filter-chip[data-range="all"]').classList.add('active');
-  document.getElementById('fromDate').value = '';
-  document.getElementById('toDate').value = '';
-  render();
+  document.querySelector('.quick-filter-chip[data-range="this_month"]').classList.add('active');
+  applyQuickRange('this_month');
 }
 
 function renderStats(){

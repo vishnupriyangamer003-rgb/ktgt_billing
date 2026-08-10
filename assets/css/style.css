@@ -258,21 +258,22 @@ a{ text-decoration: none; color: inherit; }
 
 .stat-card{
   background: var(--surface); border:1px solid var(--border); border-radius: var(--radius);
-  padding: .7rem .85rem; box-shadow: var(--shadow-xs); position:relative; overflow:hidden;
+  padding: .5rem .65rem; box-shadow: var(--shadow-xs); position:relative; overflow:hidden;
   transition: transform .2s var(--ease), box-shadow .2s var(--ease);
   height:100%; border-top:3px solid transparent;
+  display:flex; flex-wrap:wrap; align-items:center; gap:.5rem;
 }
 .stat-card:hover{ transform: translateY(-3px); box-shadow: var(--shadow-md); }
 .stat-card .stat-icon{
-  width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center;
-  font-size:.95rem; margin-bottom: .4rem;
+  width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+  font-size:.85rem; margin-bottom:0; flex-shrink:0;
 }
-.stat-card .stat-label{ font-size:11px; color: var(--text-muted); font-weight:500; margin-bottom:.15rem; }
-.stat-card .stat-value{ font-size:1.2rem; font-weight:700; color: var(--secondary); letter-spacing:-.02em; }
-.stat-card .stat-trend{ font-size:10.5px; font-weight:600; display:inline-flex; align-items:center; gap:.2rem; margin-top:.35rem; }
+.stat-card .stat-label{ font-size:11px; color: var(--text-muted); font-weight:600; margin-bottom:0; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.stat-card .stat-value{ font-size:1.05rem; font-weight:800; color: var(--secondary); letter-spacing:-.02em; margin-left:auto; flex-shrink:0; white-space:nowrap; }
+.stat-card .stat-trend{ flex-basis:100%; margin-left:calc(28px + .5rem); font-size:10.5px; font-weight:600; display:flex; align-items:center; gap:.2rem; }
 .stat-trend.up{ color: var(--success); }
 .stat-trend.down{ color: var(--danger); }
-.stat-card .stat-spark{ position:absolute; right:1rem; bottom:1rem; opacity:.9; }
+.stat-card .stat-spark{ display:none; }
 
 .bg-soft-primary{ background: var(--primary-light); color: var(--primary); }
 .bg-soft-success{ background: var(--success-light); color: var(--success); }
@@ -615,7 +616,7 @@ a{ text-decoration: none; color: inherit; }
 .bill-doctype small{ display:block; font-size:11px; font-weight:600; color: var(--text-muted); letter-spacing:.04em; }
 .bill-sheet .form-control, .bill-sheet .form-select{ background:var(--surface-alt); }
 .bill-block-label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; font-weight:700; color:var(--text-muted); margin-bottom:.5rem; }
-.bill-totals{ background: var(--surface-alt); border-radius: var(--radius); padding: 1.1rem 1.3rem; }
+.bill-totals{ background: var(--surface-alt); border-radius: var(--radius); padding: 1.1rem 1.3rem; display:grid; grid-template-columns: 1fr auto; column-gap:1rem; row-gap:.45rem; align-items:center; }
 .bill-amount-due{ display:flex; justify-content:space-between; align-items:center; margin-top:.5rem; padding-top:.5rem; border-top:1px dashed var(--border); }
 .bill-amount-due .lbl{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color: var(--text-muted); }
 .bill-amount-due .val{ font-size:13.8px; font-weight:700; color: var(--secondary); }
@@ -631,8 +632,12 @@ a{ text-decoration: none; color: inherit; }
 .bl-right .bl-company{ margin-top:.3rem; }
 .bill-to-name{ color:var(--primary); font-weight:700; font-size:14px; }
 .bill-to-meta{ font-size:11.8px; color:var(--text-secondary); line-height:1.6; }
-.bill-totals .bt-row{ display:flex; justify-content:space-between; padding:.4rem 0; font-size:13.3px; }
-.bill-totals .bt-grand{ font-size:1.15rem; font-weight:800; color:var(--primary); border-top:1.5px dashed var(--border); margin-top:.4rem; padding-top:.7rem; }
+/* display:contents lets the row's two cells become direct grid items of .bill-totals,
+   so every row's label sits in one shared left column and every value in one shared right
+   column — a true aligned grid rather than each row independently space-between'd. */
+.bill-totals .bt-row{ display:contents; font-size:13.3px; }
+.bill-totals .bt-row > *:last-child{ justify-self:end; text-align:right; }
+.bill-totals .bt-grand > *{ font-size:1.15rem; font-weight:800; color:var(--primary); border-top:1.5px dashed var(--border); margin-top:.4rem; padding-top:.7rem; }
 .item-row-card{ border:1px solid var(--border); border-radius: 12px; padding: .9rem; margin-bottom:.7rem; background: var(--surface-alt); }
 
 /* Preview modal (read-only rendered bill) */

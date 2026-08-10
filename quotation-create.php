@@ -118,7 +118,7 @@ include __DIR__ . '/components/header.php';
             <div class="bill-totals">
               <div class="bt-row"><span class="text-muted">Subtotal</span><span class="fw-600" id="sumSubtotal">₹0</span></div>
               <div class="bt-row"><span class="text-muted">Discount (₹)</span>
-                <span class="fw-600"><input type="number" class="form-control form-control-sm text-end" style="width:110px; display:inline-block;" id="discountAmount" value="0" min="0"></span>
+                <span class="fw-600"><input type="number" class="form-control form-control-sm text-end" style="width:120px; display:inline-block;" id="discountAmount" placeholder="0" min="0"></span>
               </div>
               <div class="bt-row" id="roundoffRow"><span class="text-muted">Round Off</span><span class="fw-600" id="sumRoundoff">₹0</span></div>
               <div class="bt-row bt-grand"><span>Total Amount</span>

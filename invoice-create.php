@@ -139,7 +139,7 @@ include __DIR__ . '/components/header.php';
             <div class="bill-totals">
               <div class="bt-row"><span class="text-muted">Subtotal</span><span class="fw-600" id="sumSubtotal">₹0</span></div>
               <div class="bt-row"><span class="text-muted">Discount (₹)</span>
-                <span class="fw-600"><input type="number" class="form-control form-control-sm text-end" style="width:110px; display:inline-block;" id="discountAmount" value="0" min="0"></span>
+                <span class="fw-600"><input type="number" class="form-control form-control-sm text-end" style="width:120px; display:inline-block;" id="discountAmount" placeholder="0" min="0"></span>
               </div>
               <div class="bt-row" id="sgstRow"><span class="text-muted" id="sgstLabel">SGST 9%</span><span class="fw-600" id="sumSgst">₹0</span></div>
               <div class="bt-row" id="cgstRow"><span class="text-muted" id="cgstLabel">CGST 9%</span><span class="fw-600" id="sumCgst">₹0</span></div>
@@ -149,7 +149,7 @@ include __DIR__ . '/components/header.php';
                 <span class="fw-800"><input type="number" class="form-control form-control-sm text-end fw-800" style="width:130px; display:inline-block; font-size:1.05rem;" id="grandTotalInput" value="0"></span>
               </div>
               <div class="bt-row"><span class="text-muted">Advance Paid</span>
-                <span class="fw-600 text-success"><input type="number" class="form-control form-control-sm text-end" style="width:110px; display:inline-block;" id="advancePaid" value="0"></span>
+                <span class="fw-600 text-success"><input type="number" class="form-control form-control-sm text-end" style="width:120px; display:inline-block;" id="advancePaid" placeholder="0"></span>
               </div>
               <div class="bt-row"><span class="fw-700">Amount Due</span><span class="fw-700 text-danger" id="sumBalance">₹0</span></div>
             </div>

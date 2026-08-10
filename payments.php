@@ -21,12 +21,14 @@ include __DIR__ . '/components/header.php';
         <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#ledgerModal"><i class="bi bi-journal-text me-1"></i>Ledger Report</button>
       </div>
 
+      <?php if (!$embed): ?>
       <div class="row g-3 mb-3 stagger no-print">
         <div class="col-6 col-md-3"><div class="stat-card accent-success"><div class="stat-icon bg-soft-success"><i class="bi bi-cash-coin"></i></div><div class="stat-label">Total Collected</div><div class="stat-value" id="statCollected">₹0</div></div></div>
         <div class="col-6 col-md-3"><div class="stat-card accent-danger"><div class="stat-icon bg-soft-danger"><i class="bi bi-exclamation-circle-fill"></i></div><div class="stat-label">Outstanding Balance</div><div class="stat-value" id="statOutstanding">₹0</div></div></div>
         <div class="col-6 col-md-3"><div class="stat-card accent-primary"><div class="stat-icon bg-soft-primary"><i class="bi bi-people-fill"></i></div><div class="stat-label">Customers with Dues</div><div class="stat-value" id="statCustDues">0</div></div></div>
         <div class="col-6 col-md-3"><div class="stat-card accent-warning"><div class="stat-icon bg-soft-warning"><i class="bi bi-receipt"></i></div><div class="stat-label">Total Invoices Billed</div><div class="stat-value" id="statInvoices">0</div></div></div>
       </div>
+      <?php endif; ?>
 
       <div class="row g-3 no-print">
         <div class="col-xl-7">
@@ -49,10 +51,10 @@ include __DIR__ . '/components/header.php';
                     <select class="form-select" id="payMode"><option>Cash</option><option selected>UPI</option><option>Bank Transfer</option><option>Cheque</option><option>Card</option></select>
                   </div>
                   <div class="col-md-4"><label class="form-label">Reference Number</label><input class="form-control" id="payRef" placeholder="Transaction / Cheque #"></div>
-                  <div class="col-md-8"><label class="form-label">Collected Amount <span class="req">*</span></label><input type="number" class="form-control form-control-lg fw-700" id="payAmount" placeholder="0.00"></div>
-                  <div class="col-md-4"><label class="form-label">Balance After Payment</label><input class="form-control form-control-lg fw-700 text-danger" id="payBalanceAfter" value="₹0" readonly></div>
-                  <div class="col-md-4"><label class="form-label">Received By</label><input class="form-control" id="payBy" value="Vicky"></div>
-                  <div class="col-12"><label class="form-label">Remarks</label><input class="form-control" id="payRemarks" placeholder="Optional remarks"></div>
+                  <div class="col-6 col-md-3"><label class="form-label">Collected Amount <span class="req">*</span></label><input type="number" class="form-control fw-700" id="payAmount" placeholder="0.00"></div>
+                  <div class="col-6 col-md-3"><label class="form-label">Balance After</label><input class="form-control fw-700 text-danger" id="payBalanceAfter" value="₹0" readonly></div>
+                  <div class="col-6 col-md-3"><label class="form-label">Received By</label><input class="form-control" id="payBy" value="Vicky"></div>
+                  <div class="col-6 col-md-3"><label class="form-label">Remarks</label><input class="form-control" id="payRemarks" placeholder="Optional"></div>
                 </div>
 
                 <div class="bill-block-label">Bill-wise Tally</div>
@@ -80,6 +82,7 @@ include __DIR__ . '/components/header.php';
         </div>
       </div>
 
+      <?php if (!$embed): ?>
       <div class="section-card fade-in-up no-print">
         <div class="section-head">
           <h5>Payment History</h5>
@@ -92,6 +95,7 @@ include __DIR__ . '/components/header.php';
           </table>
         </div>
       </div>
+      <?php endif; ?>
 
 <?php
 $pageModals = <<<'HTML'
@@ -137,22 +141,25 @@ $pageModals = <<<'HTML'
 HTML;
 ?>
 <?php
-$pageScript = <<<'JS'
+$pageScript = "const IS_EMBED = " . ($embed ? 'true' : 'false') . ";\n" . <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(init, 150));
 
 function init(){
   const customerNames = [...new Set(KTG.DATA.invoices.map(i => i.customer))];
   const paymentCustomer = document.getElementById('paymentCustomer');
   paymentCustomer.innerHTML = '<option value="">Select a customer...</option>' + customerNames.map(n => `<option>${n}</option>`).join('');
-  document.getElementById('historyFilter').innerHTML = '<option value="">All Customers</option>' + customerNames.map(n => `<option>${n}</option>`).join('');
   document.getElementById('ledgerCustomer').innerHTML = customerNames.map(n => `<option>${n}</option>`).join('');
 
   paymentCustomer.addEventListener('change', () => onCustomerSelect(paymentCustomer.value));
   document.getElementById('payAmount').addEventListener('input', () => { renderTally(); updateBalanceAfter(); });
-  document.getElementById('historyFilter').addEventListener('change', renderHistory);
   document.getElementById('savePaymentBtn').addEventListener('click', savePayment);
   document.getElementById('ledgerCustomer').addEventListener('change', renderLedger);
   document.getElementById('ledgerExportBtn').addEventListener('click', exportLedger);
+
+  if (!IS_EMBED) {
+    document.getElementById('historyFilter').innerHTML = '<option value="">All Customers</option>' + customerNames.map(n => `<option>${n}</option>`).join('');
+    document.getElementById('historyFilter').addEventListener('change', renderHistory);
+  }
 
   const preselect = KTG.qs('customer');
   if (preselect && customerNames.includes(preselect)) {
@@ -166,6 +173,7 @@ function init(){
 }
 
 function renderStats(){
+  if (IS_EMBED) return;
   const summaries = KTG.Ledger.allCustomerSummaries();
   const collected = summaries.reduce((s,c) => s + c.paid, 0);
   const outstanding = summaries.reduce((s,c) => s + c.balance, 0);
@@ -274,6 +282,7 @@ function savePayment(){
 }
 
 function renderHistory(){
+  if (IS_EMBED) return;
   const filter = document.getElementById('historyFilter').value;
   const payments = KTG.Ledger.allPayments().filter(p => !filter || p.customer === filter);
   document.getElementById('payTableBody').innerHTML = payments.map(p => `
