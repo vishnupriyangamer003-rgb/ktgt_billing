@@ -188,13 +188,13 @@ function onCustomerChange(){
 
 function renderItems(){
   const services = KTG.Masters.services();
-  const serviceOptions = (it) => `<option value="" data-placeholder="1" ${it.service ? '' : 'selected'} disabled>Select Service</option>` +
+  const serviceOptions = (it) => `<option value="" ${it.service ? '' : 'selected'} disabled>Select Product</option>` +
     services.map(s => `<option value="${s.name}" ${s.name === it.service ? 'selected' : ''}>${s.name}</option>`).join('');
 
   document.getElementById('itemsBodyDesktop').innerHTML = items.map((it, i) => `
     <tr>
       <td>
-        <select class="form-select mb-1" onchange="onServiceChange(${i}, this.value)">
+        <select class="form-select mb-1 no-search" onchange="onServiceChange(${i}, this.value)">
           ${serviceOptions(it)}
         </select>
         <input class="form-control form-control-sm" placeholder="Description / link (optional)" value="${it.desc}" onchange="items[${i}].desc=this.value">
@@ -209,8 +209,8 @@ function renderItems(){
     <div class="ie2-item">
       <button class="btn btn-sm btn-light ie2-remove" onclick="removeItem(${i})"><i class="bi bi-trash text-danger"></i></button>
       <div class="ie2-field">
-        <label>Service</label>
-        <select class="form-select" onchange="onServiceChange(${i}, this.value)">
+        <label>Product</label>
+        <select class="form-select no-search" onchange="onServiceChange(${i}, this.value)">
           ${serviceOptions(it)}
         </select>
       </div>
