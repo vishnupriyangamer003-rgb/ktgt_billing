@@ -37,30 +37,53 @@ include __DIR__ . '/components/header.php';
 <?php
 $pageScript = <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(init, 150));
+const MASTER_KEY = 'servers';
 
 function init(){
   render();
   document.getElementById('serverForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const input = document.getElementById('serverInput');
-    if (!input.value.trim()) return;
-    KTG.Masters.addServer(input.value.trim());
-    input.value = '';
-    render();
-    KTG.toast('Server has been added to Masters.', 'success', 'Server Added');
+    const name = input.value.trim();
+    if (!name) return;
+    $.post('ajax/masters.php', { master: MASTER_KEY, action: 'add', name })
+      .done((res) => {
+        if (res.success) {
+          input.value = '';
+          KTG.toast('Server has been added to Masters.', 'success', 'Server Added');
+          render();
+        } else {
+          KTG.toast(res.message || 'Could not add server.', 'danger', 'Error');
+        }
+      })
+      .fail(() => KTG.toast('Something went wrong. Please try again.', 'danger', 'Error'));
   });
 }
 
 function render(){
-  const list = KTG.Masters.servers();
-  document.getElementById('serverList').innerHTML = list.map((s,i) => `
-    <div class="master-row">
-      <i class="bi bi-hdd-network text-primary-KTG"></i>
-      <span class="fw-600 fs-13 flex-grow-1">${s}</span>
-      <button class="btn btn-sm btn-light" onclick="removeItem(${i})"><i class="bi bi-trash text-danger"></i></button>
-    </div>`).join('') || `<div class="text-center text-muted fs-12 py-3">No servers yet.</div>`;
+  $.get('ajax/masters.php', { master: MASTER_KEY, action: 'list' }).done((res) => {
+    const list = (res && res.data) || [];
+    document.getElementById('serverList').innerHTML = list.map(s => `
+      <div class="master-row">
+        <i class="bi bi-hdd-network text-primary-KTG"></i>
+        <span class="fw-600 fs-13 flex-grow-1">${s.name}</span>
+        <button class="btn btn-sm btn-light" onclick="removeItem(${s.id})"><i class="bi bi-trash text-danger"></i></button>
+      </div>`).join('') || `<div class="text-center text-muted fs-12 py-3">No servers yet.</div>`;
+  });
 }
 
-function removeItem(i){ KTG.Masters.removeServer(i); render(); }
+function removeItem(id){
+  KTG.confirmDialog({
+    title: 'Delete Server?',
+    body: 'This removes it from Masters.',
+    confirmText: 'Delete', confirmClass: 'btn-danger',
+    onConfirm: () => {
+      $.post('ajax/masters.php', { master: MASTER_KEY, action: 'delete', id }).done((res) => {
+        if (res.success) { KTG.toast('Server deleted.', 'success', 'Deleted'); render(); }
+        else KTG.toast(res.message || 'Could not delete.', 'danger', 'Error');
+      });
+    }
+  });
+}
 JS;
 include __DIR__ . '/components/footer.php';

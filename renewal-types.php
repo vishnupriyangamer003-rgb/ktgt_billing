@@ -37,30 +37,53 @@ include __DIR__ . '/components/header.php';
 <?php
 $pageScript = <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(init, 150));
+const MASTER_KEY = 'renewal_types';
 
 function init(){
   render();
   document.getElementById('renewalTypeForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const input = document.getElementById('renewalTypeInput');
-    if (!input.value.trim()) return;
-    KTG.Masters.addRenewalType(input.value.trim());
-    input.value = '';
-    render();
-    KTG.toast('Renewal type has been added to Masters.', 'success', 'Type Added');
+    const name = input.value.trim();
+    if (!name) return;
+    $.post('ajax/masters.php', { master: MASTER_KEY, action: 'add', name })
+      .done((res) => {
+        if (res.success) {
+          input.value = '';
+          KTG.toast('Renewal type has been added to Masters.', 'success', 'Type Added');
+          render();
+        } else {
+          KTG.toast(res.message || 'Could not add renewal type.', 'danger', 'Error');
+        }
+      })
+      .fail(() => KTG.toast('Something went wrong. Please try again.', 'danger', 'Error'));
   });
 }
 
 function render(){
-  const list = KTG.Masters.renewalTypes();
-  document.getElementById('renewalTypeList').innerHTML = list.map((t,i) => `
-    <div class="master-row">
-      <i class="bi bi-arrow-repeat text-primary-KTG"></i>
-      <span class="fw-600 fs-13 flex-grow-1">${t}</span>
-      <button class="btn btn-sm btn-light" onclick="removeItem(${i})"><i class="bi bi-trash text-danger"></i></button>
-    </div>`).join('') || `<div class="text-center text-muted fs-12 py-3">No renewal types yet.</div>`;
+  $.get('ajax/masters.php', { master: MASTER_KEY, action: 'list' }).done((res) => {
+    const list = (res && res.data) || [];
+    document.getElementById('renewalTypeList').innerHTML = list.map(t => `
+      <div class="master-row">
+        <i class="bi bi-arrow-repeat text-primary-KTG"></i>
+        <span class="fw-600 fs-13 flex-grow-1">${t.name}</span>
+        <button class="btn btn-sm btn-light" onclick="removeItem(${t.id})"><i class="bi bi-trash text-danger"></i></button>
+      </div>`).join('') || `<div class="text-center text-muted fs-12 py-3">No renewal types yet.</div>`;
+  });
 }
 
-function removeItem(i){ KTG.Masters.removeRenewalType(i); render(); }
+function removeItem(id){
+  KTG.confirmDialog({
+    title: 'Delete Renewal Type?',
+    body: 'This removes it from Masters.',
+    confirmText: 'Delete', confirmClass: 'btn-danger',
+    onConfirm: () => {
+      $.post('ajax/masters.php', { master: MASTER_KEY, action: 'delete', id }).done((res) => {
+        if (res.success) { KTG.toast('Renewal type deleted.', 'success', 'Deleted'); render(); }
+        else KTG.toast(res.message || 'Could not delete.', 'danger', 'Error');
+      });
+    }
+  });
+}
 JS;
 include __DIR__ . '/components/footer.php';
