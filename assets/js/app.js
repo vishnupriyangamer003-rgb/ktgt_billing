@@ -4,15 +4,24 @@
    ledger, chart engine, UI helpers
    ============================================================ */
 
-/* ---------------- Auth Guard (runs immediately, before paint) ---------------- */
-(function authGuard() {
-  const page = location.pathname.split('/').pop() || 'index.php';
-  const PUBLIC_PAGES = ['login.php', ''];
-  const loggedIn = sessionStorage.getItem('ktg_auth') === '1';
-  if (!loggedIn && !PUBLIC_PAGES.includes(page)) {
-    window.location.replace('login.php');
-  }
-})();
+/* Auth is enforced server-side (includes/auth.php -> require_login(), wired into
+   components/header.php) — every page that renders this script already passed that
+   check, so no client-side guard/redirect is needed here. */
+
+/* Attach the per-session CSRF token to every AJAX POST automatically, regardless
+   of whether the caller passed a plain object, a query string, or FormData. */
+if (window.jQuery && window.CSRF_TOKEN) {
+  jQuery.ajaxPrefilter((options) => {
+    if ((options.type || options.method || 'GET').toUpperCase() !== 'POST') return;
+    if (options.data instanceof FormData) {
+      options.data.append('csrf_token', window.CSRF_TOKEN);
+    } else if (typeof options.data === 'string') {
+      options.data += (options.data ? '&' : '') + 'csrf_token=' + encodeURIComponent(window.CSRF_TOKEN);
+    } else {
+      options.data = Object.assign({}, options.data, { csrf_token: window.CSRF_TOKEN });
+    }
+  });
+}
 
 const KTG = (() => {
 
@@ -170,20 +179,18 @@ const KTG = (() => {
     return new URLSearchParams(location.search).get(name);
   }
 
-  /* ---------------- Auth ---------------- */
+  /* ---------------- Auth ----------------
+     Login/session state lives entirely server-side (includes/auth.php). This just
+     asks the server to tear down the session, then leaves; it doesn't track any
+     auth state of its own client-side. */
   const Auth = {
-    isLoggedIn() { return sessionStorage.getItem('ktg_auth') === '1'; },
-    login(email, remember) {
-      sessionStorage.setItem('ktg_auth', '1');
-      sessionStorage.setItem('ktg_user_email', email || 'ktgkrr@gmail.com');
-      if (remember) localStorage.setItem('ktg_remember_email', email || '');
-      return true;
-    },
-    currentEmail() { return sessionStorage.getItem('ktg_user_email') || 'ktgkrr@gmail.com'; },
     logout() {
-      sessionStorage.removeItem('ktg_auth');
-      sessionStorage.removeItem('ktg_user_email');
-      window.location.href = 'login.php';
+      const done = () => { window.location.href = 'login.php'; };
+      if (window.jQuery) {
+        jQuery.post('ajax/auth.php', { action: 'logout' }).always(done);
+      } else {
+        done();
+      }
     }
   };
 
@@ -396,7 +403,6 @@ const KTG = (() => {
     initTooltips();
     initLogout();
     initNotifications();
-    initUserMeta();
     initSearchableSelects();
   }
 
@@ -646,9 +652,6 @@ const KTG = (() => {
     });
   }
 
-  function initUserMeta() {
-    document.querySelectorAll('.js-user-email').forEach(el => el.textContent = Auth.currentEmail());
-  }
 
   function initNotifications() {
     const bellBtn = document.getElementById('notifBellBtn');

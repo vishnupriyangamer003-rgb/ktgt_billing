@@ -5,6 +5,9 @@
  *   $pageKey    (string) data-page value used for sidebar active-state + submenu logic
  *   $extraHead  (string, optional) raw HTML injected just before </head> (page-specific <style> etc.)
  */
+require_once __DIR__ . '/../includes/auth.php';
+require_login();
+
 if (!isset($pageTitle)) { $pageTitle = 'KTG Invoice Suite'; }
 if (!isset($pageKey))   { $pageKey = ''; }
 if (!isset($extraHead)) { $extraHead = ''; }

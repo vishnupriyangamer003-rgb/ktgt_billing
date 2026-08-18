@@ -1,3 +1,7 @@
+<?php
+require_once __DIR__ . '/includes/auth.php';
+require_guest();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,18 +48,16 @@
 
         <h1 class="mb-4" style="font-size:1.9rem; font-weight:800;text-align: center;">Login</h1>
 
-        <div class="auth2-divider">OR</div>
-
         <form id="loginForm">
           <div class="filled-field">
-            <i class="bi bi-envelope-fill ff-icon"></i>
-            <label for="loginEmail">Email</label>
-            <input type="email" id="loginEmail" placeholder="example@gmail.com" value="ktgkrr@gmail.com" required>
+            <i class="bi bi-person-fill ff-icon"></i>
+            <label for="loginIdentifier">Username or Email</label>
+            <input type="text" id="loginIdentifier" placeholder="e.g. vicky.kumar or you@company.com" required autocomplete="username">
           </div>
           <div class="filled-field">
             <i class="bi bi-key-fill ff-icon"></i>
             <label for="loginPassword">Password</label>
-            <input type="password" id="loginPassword" placeholder="Enter your password" required>
+            <input type="password" id="loginPassword" placeholder="Enter your password" required autocomplete="current-password">
             <button type="button" class="ff-toggle" id="togglePw"><i class="bi bi-eye"></i></button>
           </div>
 
@@ -73,21 +75,14 @@
             <span id="loginSubmitLabel">Login</span>
           </button>
         </form>
-
-        <!-- <p class="text-center fs-13 mt-4 mb-0">Don't have an account? <a href="#" class="fw-600 text-primary-KTG">Register</a></p> -->
-
-        <div class="alert alert-primary d-flex gap-2 mt-4 mb-0" style="background:var(--primary-light); border:1px solid var(--primary-100); border-radius:12px;">
-          <i class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
-          <div class="fs-11">Demo mode — any email + password combination signs you in. Google/Facebook buttons also sign in instantly (no real OAuth in this demo).</div>
-        </div>
       </div>
     </div>
   </div>
 
 </div>
 
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="assets/js/app.js"></script>
 <script>
 document.getElementById('togglePw').addEventListener('click', () => {
   const field = document.getElementById('loginPassword');
@@ -96,39 +91,46 @@ document.getElementById('togglePw').addEventListener('click', () => {
   else { field.type = 'password'; icon.className = 'bi bi-eye'; }
 });
 
-const remembered = localStorage.getItem('ktg_remember_email');
-if (remembered) document.getElementById('loginEmail').value = remembered;
+const remembered = localStorage.getItem('ktg_remember_identifier');
+if (remembered) document.getElementById('loginIdentifier').value = remembered;
 
-function signIn(email, remember){
-  KTG.Auth.login(email, remember);
-  window.location.href = 'index.php';
-}
-
-document.getElementById('loginForm').addEventListener('submit', (e) => {
+$('#loginForm').on('submit', function (e) {
   e.preventDefault();
-  const email = document.getElementById('loginEmail').value.trim();
-  const pw = document.getElementById('loginPassword').value;
-  const errBox = document.getElementById('loginError');
-  if (!email || !pw) {
-    errBox.textContent = 'Please enter both email and password.';
-    errBox.classList.remove('d-none');
+  const identifier = $('#loginIdentifier').val().trim();
+  const password = $('#loginPassword').val();
+  const $err = $('#loginError').addClass('d-none');
+
+  if (!identifier || !password) {
+    $err.text('Please enter both a username/email and password.').removeClass('d-none');
     return;
   }
-  errBox.classList.add('d-none');
-  const submitBtn = document.getElementById('loginSubmitBtn');
-  submitBtn.disabled = true;
-  document.getElementById('loginSubmitLabel').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing in…';
-  const remember = document.getElementById('rememberMe').checked;
-  setTimeout(() => signIn(email, remember), 350);
-});
 
-document.getElementById('googleBtn').addEventListener('click', () => {
-  KTG.toast('Signing in with Google (demo)…', 'primary', 'Google Sign-In');
-  setTimeout(() => signIn('ktgkrr@gmail.com', true), 500);
-});
-document.getElementById('facebookBtn').addEventListener('click', () => {
-  KTG.toast('Signing in with Facebook (demo)…', 'primary', 'Facebook Sign-In');
-  setTimeout(() => signIn('ktgkrr@gmail.com', true), 500);
+  const remember = $('#rememberMe').is(':checked');
+  if (remember) localStorage.setItem('ktg_remember_identifier', identifier);
+  else localStorage.removeItem('ktg_remember_identifier');
+
+  const $btn = $('#loginSubmitBtn').prop('disabled', true);
+  $('#loginSubmitLabel').html('<span class="spinner-border spinner-border-sm me-2"></span>Signing in…');
+
+  $.ajax({
+    url: 'ajax/auth.php',
+    method: 'POST',
+    dataType: 'json',
+    data: { action: 'login', identifier, password }
+  }).done(function (res) {
+    if (res && res.success) {
+      window.location.href = 'index.php';
+    } else {
+      $err.text((res && res.message) || 'Login failed.').removeClass('d-none');
+      $btn.prop('disabled', false);
+      $('#loginSubmitLabel').text('Login');
+    }
+  }).fail(function (xhr) {
+    const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Login failed. Please try again.';
+    $err.text(msg).removeClass('d-none');
+    $btn.prop('disabled', false);
+    $('#loginSubmitLabel').text('Login');
+  });
 });
 </script>
 </body>

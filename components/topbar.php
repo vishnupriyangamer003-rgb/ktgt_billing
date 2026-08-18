@@ -1,3 +1,4 @@
+<?php $__topbarUser = current_user(); ?>
 <header class="topbar">
   <button class="topbar-toggle" id="mobileSidebarToggle" title="Menu">
     <i class="bi bi-list fs-4"></i>
@@ -31,15 +32,15 @@
 
     <div class="dropdown">
       <div class="topbar-user" data-bs-toggle="dropdown">
-        <img src="https://ui-avatars.com/api/?name=Vicky+K&background=2563eb&color=fff&bold=true" alt="user">
+        <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($__topbarUser['name'] ?? 'User'); ?>&background=<?php echo urlencode(ltrim($__topbarUser['avatar_color'] ?? '#2563eb', '#')); ?>&color=fff&bold=true" alt="user">
         <div class="d-none d-md-block">
-          <div class="t-name">Vicky</div>
-          <div class="t-role">Administrator</div>
+          <div class="t-name"><?php echo htmlspecialchars($__topbarUser['name'] ?? '', ENT_QUOTES); ?></div>
+          <div class="t-role"><?php echo htmlspecialchars($__topbarUser['role'] ?? '', ENT_QUOTES); ?></div>
         </div>
         <i class="bi bi-chevron-down fs-12 text-muted d-none d-md-block"></i>
       </div>
       <div class="dropdown-menu dropdown-menu-end">
-        <span class="dropdown-header">Signed in as <span class="js-user-email">ktgkrr@gmail.com</span></span>
+        <span class="dropdown-header">Signed in as <span class="js-user-email"><?php echo htmlspecialchars($__topbarUser['email'] ?? '', ENT_QUOTES); ?></span></span>
         <a class="dropdown-item" href="profile.php"><i class="bi bi-person"></i>My Profile</a>
         <a class="dropdown-item" href="settings.php"><i class="bi bi-gear"></i>Settings</a>
         <a class="dropdown-item" href="settings.php"><i class="bi bi-shield-lock"></i>Roles &amp; Permissions</a>
