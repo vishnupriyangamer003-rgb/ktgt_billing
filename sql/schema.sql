@@ -31,13 +31,28 @@ CREATE TABLE users (
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
--- MASTERS — one table per master screen already in the UI
+-- MASTERS — one table per master screen already in the UI.
+-- Every master carries a full audit trail + soft delete: a "deleted" record just
+-- flips status to 'deleted' (deleted_at/deleted_by stamped) rather than being
+-- removed, so name uniqueness is enforced in application code (scoped to
+-- status='active') instead of a DB-level UNIQUE — a plain UNIQUE(name) can't
+-- coexist with soft delete, since a re-added name would collide with its own
+-- deleted predecessor.
 -- ------------------------------------------------------------
 CREATE TABLE master_project_types (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_project_type_name (name)
+  created_by INT UNSIGNED DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  updated_by INT UNSIGNED DEFAULT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_by INT UNSIGNED DEFAULT NULL,
+  status ENUM('active','deleted') NOT NULL DEFAULT 'active',
+  KEY idx_project_type_status (status),
+  CONSTRAINT fk_project_type_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_project_type_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_project_type_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE master_services (
@@ -45,7 +60,16 @@ CREATE TABLE master_services (
   name VARCHAR(150) NOT NULL,
   rate DECIMAL(12,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_service_name (name)
+  created_by INT UNSIGNED DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  updated_by INT UNSIGNED DEFAULT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_by INT UNSIGNED DEFAULT NULL,
+  status ENUM('active','deleted') NOT NULL DEFAULT 'active',
+  KEY idx_service_status (status),
+  CONSTRAINT fk_service_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_service_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_service_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE master_taxes (
@@ -53,35 +77,80 @@ CREATE TABLE master_taxes (
   name VARCHAR(100) NOT NULL,
   percent DECIMAL(5,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_tax_name (name)
+  created_by INT UNSIGNED DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  updated_by INT UNSIGNED DEFAULT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_by INT UNSIGNED DEFAULT NULL,
+  status ENUM('active','deleted') NOT NULL DEFAULT 'active',
+  KEY idx_tax_status (status),
+  CONSTRAINT fk_tax_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_tax_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_tax_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE master_followup_types (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_followup_type_name (name)
+  created_by INT UNSIGNED DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  updated_by INT UNSIGNED DEFAULT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_by INT UNSIGNED DEFAULT NULL,
+  status ENUM('active','deleted') NOT NULL DEFAULT 'active',
+  KEY idx_followup_type_status (status),
+  CONSTRAINT fk_followup_type_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_followup_type_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_followup_type_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE master_servers (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_server_name (name)
+  created_by INT UNSIGNED DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  updated_by INT UNSIGNED DEFAULT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_by INT UNSIGNED DEFAULT NULL,
+  status ENUM('active','deleted') NOT NULL DEFAULT 'active',
+  KEY idx_server_status (status),
+  CONSTRAINT fk_server_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_server_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_server_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE master_renewal_types (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_renewal_type_name (name)
+  created_by INT UNSIGNED DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  updated_by INT UNSIGNED DEFAULT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_by INT UNSIGNED DEFAULT NULL,
+  status ENUM('active','deleted') NOT NULL DEFAULT 'active',
+  KEY idx_renewal_type_status (status),
+  CONSTRAINT fk_renewal_type_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_renewal_type_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_renewal_type_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE master_paid_status_types (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_paid_status_name (name)
+  created_by INT UNSIGNED DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  updated_by INT UNSIGNED DEFAULT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_by INT UNSIGNED DEFAULT NULL,
+  status ENUM('active','deleted') NOT NULL DEFAULT 'active',
+  KEY idx_paid_status_status (status),
+  CONSTRAINT fk_paid_status_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_paid_status_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_paid_status_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------

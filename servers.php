@@ -38,6 +38,7 @@ include __DIR__ . '/components/header.php';
 $pageScript = <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(init, 150));
 const MASTER_KEY = 'servers';
+let items = [];
 
 function init(){
   render();
@@ -62,13 +63,38 @@ function init(){
 
 function render(){
   $.get('ajax/masters.php', { master: MASTER_KEY, action: 'list' }).done((res) => {
-    const list = (res && res.data) || [];
-    document.getElementById('serverList').innerHTML = list.map(s => `
-      <div class="master-row">
-        <i class="bi bi-hdd-network text-primary-KTG"></i>
-        <span class="fw-600 fs-13 flex-grow-1">${s.name}</span>
-        <button class="btn btn-sm btn-light" onclick="removeItem(${s.id})"><i class="bi bi-trash text-danger"></i></button>
-      </div>`).join('') || `<div class="text-center text-muted fs-12 py-3">No servers yet.</div>`;
+    items = (res && res.data) || [];
+    renderList();
+  });
+}
+
+function renderList(){
+  document.getElementById('serverList').innerHTML = items.map(s => `
+    <div class="master-row" id="mrow-${s.id}">
+      <i class="bi bi-hdd-network text-primary-KTG"></i>
+      <span class="fw-600 fs-13 flex-grow-1">${s.name}</span>
+      <button class="btn btn-sm btn-light" onclick="editItem(${s.id})" title="Edit"><i class="bi bi-pencil text-primary-KTG"></i></button>
+      <button class="btn btn-sm btn-light" onclick="removeItem(${s.id})" title="Delete"><i class="bi bi-trash text-danger"></i></button>
+    </div>`).join('') || `<div class="text-center text-muted fs-12 py-3">No servers yet.</div>`;
+}
+
+function editItem(id){
+  const s = items.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('mrow-' + id).innerHTML = `
+    <i class="bi bi-hdd-network text-primary-KTG"></i>
+    <input class="form-control form-control-sm flex-grow-1" id="editInput-${id}" value="${KTG.escAttr(s.name)}">
+    <button class="btn btn-sm btn-soft-primary" onclick="saveEdit(${id})" title="Save"><i class="bi bi-check-lg"></i></button>
+    <button class="btn btn-sm btn-light" onclick="renderList()" title="Cancel"><i class="bi bi-x-lg"></i></button>`;
+  document.getElementById('editInput-' + id).focus();
+}
+
+function saveEdit(id){
+  const name = document.getElementById('editInput-' + id).value.trim();
+  if (!name) return;
+  $.post('ajax/masters.php', { master: MASTER_KEY, action: 'edit', id, name }).done((res) => {
+    if (res.success) { KTG.toast('Server updated.', 'success', 'Updated'); render(); }
+    else KTG.toast(res.message || 'Could not update.', 'danger', 'Error');
   });
 }
 

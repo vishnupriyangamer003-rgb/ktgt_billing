@@ -39,6 +39,7 @@ include __DIR__ . '/components/header.php';
 $pageScript = <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(init, 150));
 const MASTER_KEY = 'taxes';
+let items = [];
 
 function init(){
   render();
@@ -64,14 +65,41 @@ function init(){
 
 function render(){
   $.get('ajax/masters.php', { master: MASTER_KEY, action: 'list' }).done((res) => {
-    const list = (res && res.data) || [];
-    document.getElementById('taxList').innerHTML = list.map(t => `
-      <div class="master-row">
-        <i class="bi bi-receipt-cutoff text-primary-KTG"></i>
-        <span class="fw-600 fs-13 flex-grow-1">${t.name}</span>
-        <span class="chip chip-inprogress">${+t.percent}%</span>
-        <button class="btn btn-sm btn-light" onclick="removeItem(${t.id})"><i class="bi bi-trash text-danger"></i></button>
-      </div>`).join('') || `<div class="text-center text-muted fs-12 py-3">No tax rates yet.</div>`;
+    items = (res && res.data) || [];
+    renderList();
+  });
+}
+
+function renderList(){
+  document.getElementById('taxList').innerHTML = items.map(t => `
+    <div class="master-row" id="mrow-${t.id}">
+      <i class="bi bi-receipt-cutoff text-primary-KTG"></i>
+      <span class="fw-600 fs-13 flex-grow-1">${t.name}</span>
+      <span class="chip chip-inprogress">${+t.percent}%</span>
+      <button class="btn btn-sm btn-light" onclick="editItem(${t.id})" title="Edit"><i class="bi bi-pencil text-primary-KTG"></i></button>
+      <button class="btn btn-sm btn-light" onclick="removeItem(${t.id})" title="Delete"><i class="bi bi-trash text-danger"></i></button>
+    </div>`).join('') || `<div class="text-center text-muted fs-12 py-3">No tax rates yet.</div>`;
+}
+
+function editItem(id){
+  const t = items.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('mrow-' + id).innerHTML = `
+    <i class="bi bi-receipt-cutoff text-primary-KTG"></i>
+    <input class="form-control form-control-sm flex-grow-1" id="editName-${id}" value="${KTG.escAttr(t.name)}" placeholder="Tax name">
+    <input type="number" class="form-control form-control-sm" style="max-width:100px;" id="editPercent-${id}" value="${+t.percent}" placeholder="%">
+    <button class="btn btn-sm btn-soft-primary" onclick="saveEdit(${id})" title="Save"><i class="bi bi-check-lg"></i></button>
+    <button class="btn btn-sm btn-light" onclick="renderList()" title="Cancel"><i class="bi bi-x-lg"></i></button>`;
+  document.getElementById('editName-' + id).focus();
+}
+
+function saveEdit(id){
+  const name = document.getElementById('editName-' + id).value.trim();
+  const percent = +document.getElementById('editPercent-' + id).value || 0;
+  if (!name) return;
+  $.post('ajax/masters.php', { master: MASTER_KEY, action: 'edit', id, name, percent }).done((res) => {
+    if (res.success) { KTG.toast('Tax rate updated.', 'success', 'Updated'); render(); }
+    else KTG.toast(res.message || 'Could not update.', 'danger', 'Error');
   });
 }
 

@@ -727,6 +727,10 @@ const KTG = (() => {
   function money(n) {
     return '₹' + Number(n).toLocaleString('en-IN');
   }
+  /* Safe to drop into a double-quoted HTML attribute, e.g. value="${KTG.escAttr(x)}". */
+  function escAttr(s) {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
   function moneyShort(n) {
     if (n >= 10000000) return '₹' + (n/10000000).toFixed(2) + 'Cr';
     if (n >= 100000) return '₹' + (n/100000).toFixed(2) + 'L';
@@ -1078,7 +1082,7 @@ const KTG = (() => {
     return html;
   }
 
-  return { DATA, qs, Auth, Masters, CompanyProfile, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable, nextInvoiceNumber, dueDays, relativeDaysLabel, dateRangeFor, companyLetterheadHtml };
+  return { DATA, qs, Auth, Masters, CompanyProfile, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, escAttr, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable, nextInvoiceNumber, dueDays, relativeDaysLabel, dateRangeFor, companyLetterheadHtml };
 })();
 
 document.addEventListener('DOMContentLoaded', () => { KTG.loadLayout(); });

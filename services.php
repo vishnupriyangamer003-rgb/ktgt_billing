@@ -39,6 +39,7 @@ include __DIR__ . '/components/header.php';
 $pageScript = <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(init, 150));
 const MASTER_KEY = 'services';
+let items = [];
 
 function init(){
   render();
@@ -64,16 +65,43 @@ function init(){
 
 function render(){
   $.get('ajax/masters.php', { master: MASTER_KEY, action: 'list' }).done((res) => {
-    const list = (res && res.data) || [];
-    document.getElementById('serviceList').innerHTML = list.map(s => `
-      <div class="master-row">
-        <i class="bi bi-tools text-primary-KTG"></i>
-        <div class="flex-grow-1">
-          <div class="fw-600 fs-13">${s.name}</div>
-          <div class="fs-11 text-muted">${KTG.money(+s.rate || 0)}</div>
-        </div>
-        <button class="btn btn-sm btn-light" onclick="removeItem(${s.id})"><i class="bi bi-trash text-danger"></i></button>
-      </div>`).join('') || `<div class="text-center text-muted fs-12 py-3">No services yet.</div>`;
+    items = (res && res.data) || [];
+    renderList();
+  });
+}
+
+function renderList(){
+  document.getElementById('serviceList').innerHTML = items.map(s => `
+    <div class="master-row" id="mrow-${s.id}">
+      <i class="bi bi-tools text-primary-KTG"></i>
+      <div class="flex-grow-1">
+        <div class="fw-600 fs-13">${s.name}</div>
+        <div class="fs-11 text-muted">${KTG.money(+s.rate || 0)}</div>
+      </div>
+      <button class="btn btn-sm btn-light" onclick="editItem(${s.id})" title="Edit"><i class="bi bi-pencil text-primary-KTG"></i></button>
+      <button class="btn btn-sm btn-light" onclick="removeItem(${s.id})" title="Delete"><i class="bi bi-trash text-danger"></i></button>
+    </div>`).join('') || `<div class="text-center text-muted fs-12 py-3">No services yet.</div>`;
+}
+
+function editItem(id){
+  const s = items.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('mrow-' + id).innerHTML = `
+    <i class="bi bi-tools text-primary-KTG"></i>
+    <input class="form-control form-control-sm flex-grow-1" id="editName-${id}" value="${KTG.escAttr(s.name)}" placeholder="Service name">
+    <input type="number" class="form-control form-control-sm" style="max-width:130px;" id="editRate-${id}" value="${+s.rate || 0}" placeholder="Rate">
+    <button class="btn btn-sm btn-soft-primary" onclick="saveEdit(${id})" title="Save"><i class="bi bi-check-lg"></i></button>
+    <button class="btn btn-sm btn-light" onclick="renderList()" title="Cancel"><i class="bi bi-x-lg"></i></button>`;
+  document.getElementById('editName-' + id).focus();
+}
+
+function saveEdit(id){
+  const name = document.getElementById('editName-' + id).value.trim();
+  const rate = +document.getElementById('editRate-' + id).value || 0;
+  if (!name) return;
+  $.post('ajax/masters.php', { master: MASTER_KEY, action: 'edit', id, name, rate }).done((res) => {
+    if (res.success) { KTG.toast('Service updated.', 'success', 'Updated'); render(); }
+    else KTG.toast(res.message || 'Could not update.', 'danger', 'Error');
   });
 }
 
