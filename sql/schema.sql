@@ -170,11 +170,20 @@ CREATE TABLE customers (
   project_type_id INT UNSIGNED DEFAULT NULL,
   status ENUM('active','pending','inactive') NOT NULL DEFAULT 'pending',
   notes TEXT,
+  created_by INT UNSIGNED DEFAULT NULL,
+  updated_by INT UNSIGNED DEFAULT NULL,
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_by INT UNSIGNED DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY idx_customers_status (status),
   KEY idx_customers_mobile (mobile),
-  CONSTRAINT fk_customers_project_type FOREIGN KEY (project_type_id) REFERENCES master_project_types(id) ON DELETE SET NULL
+  KEY idx_customers_is_deleted (is_deleted),
+  CONSTRAINT fk_customers_project_type FOREIGN KEY (project_type_id) REFERENCES master_project_types(id) ON DELETE SET NULL,
+  CONSTRAINT fk_customers_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_customers_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_customers_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
