@@ -462,7 +462,14 @@ const KTG = (() => {
 
       panel.appendChild(search);
       panel.appendChild(optionsWrap);
-      document.body.appendChild(panel);
+      // Append inside the enclosing Bootstrap modal (if any) rather than always to
+      // <body> — position:fixed positions identically either way (it's viewport-
+      // relative regardless of DOM nesting), but Bootstrap's modal focus-trap
+      // forces focus back into the modal on every focusin from outside it, which
+      // made the search input unfocusable/untypeable when the select lived in a
+      // modal and the panel was appended to body.
+      const enclosingModal = trigger.closest('.modal');
+      (enclosingModal || document.body).appendChild(panel);
 
       const choices = Array.from(select.options)
         .filter(o => !(o.disabled && !o.value))

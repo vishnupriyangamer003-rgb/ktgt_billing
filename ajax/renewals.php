@@ -59,7 +59,7 @@ function validate_renewal_input(): array {
 }
 
 if ($action === 'customer_options') {
-    $rows = db()->query("SELECT id, name, project_type_id FROM customers WHERE is_deleted = 0 ORDER BY name ASC")->fetchAll();
+    $rows = db()->query("SELECT id, name, company_name, project_type_id FROM customers WHERE is_deleted = 0 ORDER BY name ASC")->fetchAll();
     json_success($rows);
 }
 

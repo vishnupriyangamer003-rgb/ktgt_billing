@@ -38,6 +38,7 @@ include __DIR__ . '/components/header.php';
           </button>
           <div class="collapse" id="renewalFiltersBody">
             <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+              <button type="button" class="quick-filter-chip" data-range="all"><i class="bi bi-collection"></i>Show All</button>
               <button type="button" class="quick-filter-chip" data-range="last_month"><i class="bi bi-calendar-minus"></i>Last Month</button>
               <button type="button" class="quick-filter-chip active" data-range="this_month"><i class="bi bi-calendar-check"></i>This Month</button>
               <button type="button" class="quick-filter-chip" data-range="this_week"><i class="bi bi-calendar-week"></i>This Week</button>
@@ -239,10 +240,15 @@ function init(){
 }
 
 let customerOptions = [];
+function customerOptionLabel(c){
+  const sameAsName = !c.company_name || c.company_name.trim().toLowerCase() === (c.name || '').trim().toLowerCase();
+  return sameAsName ? c.name : `${c.name} - ${c.company_name}`;
+}
+
 function loadCustomerOptions(){
   $.get('ajax/renewals.php', { action: 'customer_options' }).done((res) => {
     customerOptions = res.data || [];
-    const opts = customerOptions.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    const opts = customerOptions.map(c => `<option value="${c.id}">${KTG.escAttr(customerOptionLabel(c))}</option>`).join('');
     document.getElementById('rmCustomer').innerHTML = '<option value="">Select customer...</option>' + opts;
     document.getElementById('customerFilter').innerHTML = '<option value="">All Customers</option>' + opts;
   });
@@ -334,8 +340,8 @@ function clearFilters(){
   document.getElementById('statusFilter').value = '';
   document.getElementById('customerFilter').value = '';
   document.querySelectorAll('.quick-filter-chip').forEach(c => c.classList.remove('active'));
-  document.querySelector('.quick-filter-chip[data-range="this_month"]').classList.add('active');
-  applyQuickRange('this_month');
+  document.querySelector('.quick-filter-chip[data-range="all"]').classList.add('active');
+  applyQuickRange('all');
 }
 
 function renderStats(){
