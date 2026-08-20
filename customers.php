@@ -9,7 +9,7 @@ include __DIR__ . '/components/header.php';
           <nav class="breadcrumb"><span class="breadcrumb-item"><a href="index.php">Dashboard</a></span><span class="breadcrumb-item active">Customers</span></nav>
         </div>
         <div class="d-flex gap-2">
-          <button class="btn btn-primary" id="addCustomerBtn" data-bs-toggle="modal" data-bs-target="#addCustomerModal"><i class="bi bi-plus-lg me-1"></i>Add Customer</button>
+          <button class="btn btn-primary" id="addCustomerBtn"><i class="bi bi-plus-lg me-1"></i>Add Customer</button>
         </div>
       </div>
 

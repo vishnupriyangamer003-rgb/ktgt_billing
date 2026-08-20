@@ -22,7 +22,7 @@ include __DIR__ . '/components/header.php';
             <button class="btn btn-soft-primary" id="viewListBtn"><i class="bi bi-list-ul"></i> List</button>
             <button class="btn btn-light" id="viewKanbanBtn"><i class="bi bi-kanban"></i> Grid</button>
           </div>
-          <button class="btn btn-primary" id="newProjectBtn" data-bs-toggle="modal" data-bs-target="#addProjectModal"><i class="bi bi-plus-lg me-1"></i>New Project</button>
+          <button class="btn btn-primary" id="newProjectBtn"><i class="bi bi-plus-lg me-1"></i>New Project</button>
         </div>
       </div>
 

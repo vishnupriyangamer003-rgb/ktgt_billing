@@ -201,14 +201,23 @@ CREATE TABLE renewals (
   expiry_date DATE NOT NULL,
   renewal_type_id INT UNSIGNED DEFAULT NULL,
   paid_status_id INT UNSIGNED DEFAULT NULL,
+  created_by INT UNSIGNED DEFAULT NULL,
+  updated_by INT UNSIGNED DEFAULT NULL,
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_by INT UNSIGNED DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY idx_renewals_expiry (expiry_date),
+  KEY idx_renewals_is_deleted (is_deleted),
   CONSTRAINT fk_renewals_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
   CONSTRAINT fk_renewals_project_type FOREIGN KEY (project_type_id) REFERENCES master_project_types(id) ON DELETE SET NULL,
   CONSTRAINT fk_renewals_server FOREIGN KEY (server_id) REFERENCES master_servers(id) ON DELETE SET NULL,
   CONSTRAINT fk_renewals_renewal_type FOREIGN KEY (renewal_type_id) REFERENCES master_renewal_types(id) ON DELETE SET NULL,
-  CONSTRAINT fk_renewals_paid_status FOREIGN KEY (paid_status_id) REFERENCES master_paid_status_types(id) ON DELETE SET NULL
+  CONSTRAINT fk_renewals_paid_status FOREIGN KEY (paid_status_id) REFERENCES master_paid_status_types(id) ON DELETE SET NULL,
+  CONSTRAINT fk_renewals_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_renewals_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_renewals_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------

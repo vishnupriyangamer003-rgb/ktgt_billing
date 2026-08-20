@@ -77,23 +77,28 @@ $pageModals = <<<'HTML'
       <div class="modal-body">
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label">Project Name <span class="req">*</span></label>
-            <select class="form-select" id="rmProject"></select>
+            <label class="form-label">Customer <span class="req">*</span></label>
+            <select class="form-select" id="rmCustomer"><option value="">Select customer...</option></select>
           </div>
-          <div class="col-md-3"><label class="form-label">Customer</label><input class="form-control" id="rmCustomer" readonly></div>
-          <div class="col-md-3"><label class="form-label">Project Type</label><input class="form-control" id="rmType" readonly></div>
+          <div class="col-md-6">
+            <label class="form-label">Project Name <span class="req">*</span></label>
+            <input class="form-control" id="rmProjectName" placeholder="e.g. Corporate Website Revamp">
+          </div>
 
+          <div class="col-md-6"><label class="form-label">Project Type</label><select class="form-select" id="rmType"><option value="">Select Type</option></select></div>
           <div class="col-md-6"><label class="form-label">Server</label><select class="form-select" id="rmServer"></select></div>
+
           <div class="col-md-6"><label class="form-label">Renewal Type</label><select class="form-select" id="rmRenewalType"></select></div>
+          <div class="col-md-6"><label class="form-label">Expiry Date <span class="req">*</span></label><input type="date" class="form-control" id="rmExpiry"></div>
 
           <div class="col-md-6"><label class="form-label">Domain Control</label><input class="form-control" id="rmDomainControl" placeholder="e.g. With us (KTG) / Client-side (GoDaddy)"></div>
-          <div class="col-md-6"><label class="form-label">Expiry Date</label><input type="date" class="form-control" id="rmExpiry"></div>
+          <div class="col-md-6"><label class="form-label">Paid Status</label><select class="form-select" id="rmPaidStatus"></select></div>
 
           <div class="col-12"><label class="form-label">Live Project Link <span class="fs-11 text-muted fw-400">(include admin login details if any)</span></label>
             <textarea class="form-control" rows="2" id="rmLiveLink" placeholder="https://example.com — admin: example.com/wp-admin, user: admin"></textarea>
           </div>
 
-          <div class="col-md-6"><label class="form-label">Paid Status</label><select class="form-select" id="rmPaidStatus"></select></div>
+          <div class="col-12"><div id="renewalFormError" class="alert alert-danger py-2 fs-13 d-none mb-0" style="border-radius:11px;"></div></div>
         </div>
       </div>
       <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" id="saveRenewalBtn">Save Entry</button></div>
@@ -167,27 +172,35 @@ HTML;
 $pageScript = <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(init, 150));
 
-const TODAY = new Date('2026-08-06T00:00:00');
-let renewalsList = [];
-let editIndex = null;
+let items = [];
+let editId = null;
+let viewId = null;
 let giGstEnabled = true;
 let giContext = null;
 
 function init(){
-  renewalsList = KTG.DATA.renewals.map(r => ({...r}));
+  loadCustomerOptions();
 
-  const projects = KTG.DATA.projects;
-  document.getElementById('rmProject').innerHTML = projects.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
-  document.getElementById('rmProject').addEventListener('change', onProjectSelect);
-  document.getElementById('rmServer').innerHTML = KTG.Masters.servers().map(s => `<option>${s}</option>`).join('');
-  document.getElementById('rmRenewalType').innerHTML = KTG.Masters.renewalTypes().map(t => `<option>${t}</option>`).join('');
-  document.getElementById('rmPaidStatus').innerHTML = KTG.Masters.paidStatusTypes().map(t => `<option>${t}</option>`).join('');
+  document.getElementById('rmServer').innerHTML = '<option value="">Select Server</option>';
+  $.get('ajax/masters.php', { master: 'servers', action: 'list' }).done((res) => {
+    document.getElementById('rmServer').innerHTML = '<option value="">Select Server</option>' + (res.data || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  });
+  $.get('ajax/masters.php', { master: 'renewal_types', action: 'list' }).done((res) => {
+    document.getElementById('rmRenewalType').innerHTML = '<option value="">Select Renewal Type</option>' + (res.data || []).map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  });
+  $.get('ajax/masters.php', { master: 'paid_status_types', action: 'list' }).done((res) => {
+    const opts = (res.data || []).map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    document.getElementById('rmPaidStatus').innerHTML = '<option value="">Select Status</option>' + opts;
+    document.getElementById('statusFilter').innerHTML = '<option value="">All Status</option>' + opts;
+  });
+  $.get('ajax/masters.php', { master: 'project_types', action: 'list' }).done((res) => {
+    document.getElementById('rmType').innerHTML = '<option value="">Select Type</option>' + (res.data || []).map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  });
+  $.get('ajax/masters.php', { master: 'taxes', action: 'list' }).done((res) => {
+    document.getElementById('giTaxRate').innerHTML = (res.data || []).filter(t => +t.percent > 0).map(t => `<option value="${t.percent}">${t.name}</option>`).join('');
+  });
 
-  const custNames = [...new Set(KTG.DATA.projects.map(p => p.customer))];
-  document.getElementById('customerFilter').innerHTML = '<option value="">All Customers</option>' + custNames.map(n => `<option>${n}</option>`).join('');
-  document.getElementById('statusFilter').innerHTML = '<option value="">All Status</option>' + KTG.Masters.paidStatusTypes().map(t => `<option>${t}</option>`).join('');
-
-  document.getElementById('giTaxRate').innerHTML = KTG.Masters.taxes().filter(t => t.percent > 0).map(t => `<option value="${t.percent}">${t.name}</option>`).join('');
+  document.getElementById('rmCustomer').addEventListener('change', onCustomerSelect);
 
   document.querySelectorAll('.quick-filter-chip').forEach(chip => {
     chip.addEventListener('click', () => {
@@ -215,14 +228,29 @@ function init(){
 
   document.getElementById('viewEditBtn').addEventListener('click', () => {
     bootstrap.Modal.getInstance(document.getElementById('viewRenewalModal')).hide();
-    openModal(viewIndex);
+    openModal(viewId);
   });
   document.getElementById('viewInvoiceBtn').addEventListener('click', () => {
     bootstrap.Modal.getInstance(document.getElementById('viewRenewalModal')).hide();
-    openInvoiceModal(viewIndex);
+    openInvoiceModal(viewId);
   });
 
   applyQuickRange('this_month');
+}
+
+let customerOptions = [];
+function loadCustomerOptions(){
+  $.get('ajax/renewals.php', { action: 'customer_options' }).done((res) => {
+    customerOptions = res.data || [];
+    const opts = customerOptions.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    document.getElementById('rmCustomer').innerHTML = '<option value="">Select customer...</option>' + opts;
+    document.getElementById('customerFilter').innerHTML = '<option value="">All Customers</option>' + opts;
+  });
+}
+
+function onCustomerSelect(){
+  const c = customerOptions.find(x => String(x.id) === document.getElementById('rmCustomer').value);
+  if (c && c.project_type_id) document.getElementById('rmType').value = c.project_type_id;
 }
 
 function applyQuickRange(range){
@@ -239,7 +267,8 @@ function applyQuickRange(range){
 
 function daysDiff(dateStr){
   const d = new Date(dateStr + 'T00:00:00');
-  return Math.round((d - TODAY) / 86400000);
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.round((d - today) / 86400000);
 }
 
 function expiryBadge(dateStr){
@@ -248,53 +277,57 @@ function expiryBadge(dateStr){
   if (days <= 30) return `<span class="expiry-badge bg-soft-warning">${days}d left</span>`;
   return `<span class="expiry-badge bg-soft-success">${days}d left</span>`;
 }
+function paidChipClass(name){
+  const n = (name || '').toLowerCase();
+  return n === 'paid' ? 'active' : n === 'unpaid' ? 'overdue' : 'pending';
+}
 
 function render(){
-  const from = document.getElementById('fromDate').value;
-  const to = document.getElementById('toDate').value;
-  const customer = document.getElementById('customerFilter').value;
-  const status = document.getElementById('statusFilter').value;
+  const params = {
+    action: 'list',
+    from: document.getElementById('fromDate').value,
+    to: document.getElementById('toDate').value,
+    customer_id: document.getElementById('customerFilter').value,
+    paid_status_id: document.getElementById('statusFilter').value
+  };
+  $.get('ajax/renewals.php', params).done((res) => {
+    if (!res.success) { KTG.toast(res.message || 'Could not load renewals.', 'danger', 'Error'); return; }
+    items = res.data || [];
+    renderList();
+    renderStats();
+  });
+}
 
-  const filtered = renewalsList.filter(r =>
-    (!from || r.expiryDate >= from) && (!to || r.expiryDate <= to) &&
-    (!customer || r.customer === customer) &&
-    (!status || r.paidStatus === status)
-  );
-
-  document.getElementById('resultsCount').textContent = filtered.length + ' entries';
-  document.getElementById('resultsBody').innerHTML = filtered.map((r) => {
-    const i = renewalsList.indexOf(r);
-    return `
+function renderList(){
+  document.getElementById('resultsCount').textContent = items.length + ' entries';
+  document.getElementById('resultsBody').innerHTML = items.map((r, i) => `
     <tr>
       <td class="fs-13 text-muted">${i+1}</td>
       <td>
-        <div class="cell-title">${r.project}</div>
-        <div class="cell-sub">${r.customer}</div>
+        <div class="cell-title">${r.project_name}</div>
+        <div class="cell-sub">${r.customer_name}</div>
       </td>
-      <td><span class="chip chip-inprogress">${r.type}</span></td>
-      <td class="fs-13">${r.server}</td>
-      <td><a href="#" class="link-cell fs-13" title="${r.liveLink}" onclick="openViewModal(${i}); return false;">${r.liveLink}</a></td>
-      <td><div class="fs-13 fw-600">${r.expiryDate}</div>${expiryBadge(r.expiryDate)}</td>
-      <td><span class="chip chip-${r.paidStatus.toLowerCase()==='paid'?'active':r.paidStatus.toLowerCase()==='unpaid'?'overdue':'pending'}">${r.paidStatus}</span></td>
+      <td>${r.project_type_name ? `<span class="chip chip-inprogress">${r.project_type_name}</span>` : '<span class="text-muted">—</span>'}</td>
+      <td class="fs-13">${r.server_name || '—'}</td>
+      <td><a href="#" class="link-cell fs-13" title="${(r.live_link||'').replace(/"/g,'&quot;')}" onclick="openViewModal(${r.id}); return false;">${r.live_link || '—'}</a></td>
+      <td><div class="fs-13 fw-600">${r.expiry_date}</div>${expiryBadge(r.expiry_date)}</td>
+      <td>${r.paid_status_name ? `<span class="chip chip-${paidChipClass(r.paid_status_name)}">${r.paid_status_name}</span>` : '<span class="text-muted">—</span>'}</td>
       <td>
         <div class="d-flex gap-1">
-          <button class="btn btn-sm btn-light" title="View" onclick="openViewModal(${i})"><i class="bi bi-eye"></i></button>
+          <button class="btn btn-sm btn-light" title="View" onclick="openViewModal(${r.id})"><i class="bi bi-eye"></i></button>
           <div class="dropdown">
             <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
             <div class="dropdown-menu dropdown-menu-end">
-              <a class="dropdown-item" href="#" onclick="openInvoiceModal(${i}); return false;"><i class="bi bi-receipt"></i>Generate Invoice</a>
-              <a class="dropdown-item" href="#" onclick="openModal(${i}); return false;"><i class="bi bi-pencil"></i>Edit</a>
+              <a class="dropdown-item" href="#" onclick="openInvoiceModal(${r.id}); return false;"><i class="bi bi-receipt"></i>Generate Invoice</a>
+              <a class="dropdown-item" href="#" onclick="openModal(${r.id}); return false;"><i class="bi bi-pencil"></i>Edit</a>
               <div class="dropdown-divider"></div>
-              <a class="dropdown-item text-danger" href="#" onclick="deleteRenewal(${i}); return false;"><i class="bi bi-trash"></i>Delete</a>
+              <a class="dropdown-item text-danger" href="#" onclick="deleteRenewal(${r.id}); return false;"><i class="bi bi-trash"></i>Delete</a>
             </div>
           </div>
         </div>
       </td>
-    </tr>`;
-  }).join('') || `<tr><td colspan="8"><div class="empty-state"><div class="es-icon"><i class="bi bi-hdd-network"></i></div><h6>No matching entries</h6><p>Try widening the date range or clearing filters.</p></div></td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="8"><div class="empty-state"><div class="es-icon"><i class="bi bi-hdd-network"></i></div><h6>No matching entries</h6><p>Try widening the date range or clearing filters.</p></div></td></tr>`;
   KTG.makeResponsiveTable(document.getElementById('resultsBody').closest('table'));
-
-  renderStats();
 }
 
 function clearFilters(){
@@ -306,144 +339,150 @@ function clearFilters(){
 }
 
 function renderStats(){
-  document.getElementById('statTotal').textContent = renewalsList.length;
-  document.getElementById('statThisMonth').textContent = renewalsList.filter(r => { const d = daysDiff(r.expiryDate); return d >= 0 && d <= monthDaysLeft(); }).length;
-  document.getElementById('statExpired').textContent = renewalsList.filter(r => daysDiff(r.expiryDate) < 0).length;
-  document.getElementById('statPaid').textContent = renewalsList.filter(r => r.paidStatus.toLowerCase() === 'paid').length;
-}
-function monthDaysLeft(){
-  const lastDay = new Date(TODAY.getFullYear(), TODAY.getMonth()+1, 0).getDate();
-  return lastDay - TODAY.getDate();
+  $.get('ajax/renewals.php', { action: 'stats' }).done((res) => {
+    const s = (res && res.data) || {};
+    document.getElementById('statTotal').textContent = s.total || 0;
+    document.getElementById('statThisMonth').textContent = s.this_month || 0;
+    document.getElementById('statExpired').textContent = s.expired || 0;
+    document.getElementById('statPaid').textContent = s.paid || 0;
+  });
 }
 
-function openModal(index){
-  editIndex = index;
+function openModal(id){
+  editId = id;
   const title = document.getElementById('renewalModalTitle');
   const btn = document.getElementById('saveRenewalBtn');
-  if (index === null) {
+  document.getElementById('renewalFormError').classList.add('d-none');
+  if (id === null) {
     title.innerHTML = '<i class="bi bi-arrow-repeat text-primary-KTG me-2"></i>New Renewal Entry';
     btn.textContent = 'Save Entry';
-    document.getElementById('rmProject').selectedIndex = 0;
-    onProjectSelect();
-    document.getElementById('rmServer').selectedIndex = 0;
-    document.getElementById('rmRenewalType').selectedIndex = 0;
-    document.getElementById('rmPaidStatus').selectedIndex = 0;
+    document.getElementById('rmCustomer').value = '';
+    document.getElementById('rmProjectName').value = '';
+    document.getElementById('rmType').value = '';
+    document.getElementById('rmServer').value = '';
+    document.getElementById('rmRenewalType').value = '';
+    document.getElementById('rmPaidStatus').value = '';
     document.getElementById('rmDomainControl').value = '';
     document.getElementById('rmLiveLink').value = '';
     document.getElementById('rmExpiry').value = '';
   } else {
-    const r = renewalsList[index];
+    const r = items.find(x => x.id === id);
+    if (!r) return;
     title.innerHTML = '<i class="bi bi-pencil-square text-primary-KTG me-2"></i>Edit Renewal Entry';
     btn.textContent = 'Save Changes';
-    document.getElementById('rmProject').value = r.project;
-    onProjectSelect();
-    document.getElementById('rmServer').value = r.server;
-    document.getElementById('rmRenewalType').value = r.renewalType;
-    document.getElementById('rmPaidStatus').value = r.paidStatus;
-    document.getElementById('rmDomainControl').value = r.domainControl;
-    document.getElementById('rmLiveLink').value = r.liveLink;
-    document.getElementById('rmExpiry').value = r.expiryDate;
+    document.getElementById('rmCustomer').value = r.customer_id;
+    document.getElementById('rmProjectName').value = r.project_name;
+    document.getElementById('rmType').value = r.project_type_id || '';
+    document.getElementById('rmServer').value = r.server_id || '';
+    document.getElementById('rmRenewalType').value = r.renewal_type_id || '';
+    document.getElementById('rmPaidStatus').value = r.paid_status_id || '';
+    document.getElementById('rmDomainControl').value = r.domain_control || '';
+    document.getElementById('rmLiveLink').value = r.live_link || '';
+    document.getElementById('rmExpiry').value = r.expiry_date;
   }
   new bootstrap.Modal(document.getElementById('renewalModal')).show();
 }
 
-function onProjectSelect(){
-  const name = document.getElementById('rmProject').value;
-  const p = KTG.DATA.projects.find(x => x.name === name);
-  document.getElementById('rmCustomer').value = p ? p.customer : '';
-  document.getElementById('rmType').value = p ? p.type : '';
-}
-
 function saveRenewal(){
-  const entry = {
-    project: document.getElementById('rmProject').value,
-    customer: document.getElementById('rmCustomer').value,
-    type: document.getElementById('rmType').value,
-    server: document.getElementById('rmServer').value,
-    domainControl: document.getElementById('rmDomainControl').value || '—',
-    liveLink: document.getElementById('rmLiveLink').value || '—',
-    expiryDate: document.getElementById('rmExpiry').value,
-    renewalType: document.getElementById('rmRenewalType').value,
-    paidStatus: document.getElementById('rmPaidStatus').value
+  const payload = {
+    action: editId === null ? 'add' : 'edit',
+    id: editId,
+    customer_id: document.getElementById('rmCustomer').value,
+    project_name: document.getElementById('rmProjectName').value.trim(),
+    project_type_id: document.getElementById('rmType').value,
+    server_id: document.getElementById('rmServer').value,
+    renewal_type_id: document.getElementById('rmRenewalType').value,
+    paid_status_id: document.getElementById('rmPaidStatus').value,
+    domain_control: document.getElementById('rmDomainControl').value.trim(),
+    live_link: document.getElementById('rmLiveLink').value.trim(),
+    expiry_date: document.getElementById('rmExpiry').value
   };
-  if (!entry.expiryDate) { KTG.toast('Please set an expiry date.', 'danger', 'Missing Date'); return; }
+  const $err = $('#renewalFormError').addClass('d-none');
+  const $btn = $('#saveRenewalBtn').prop('disabled', true);
 
-  if (editIndex === null) {
-    renewalsList.unshift({id: Date.now(), ...entry});
-    KTG.toast('Renewal entry has been added.', 'success', 'Entry Added');
-  } else {
-    Object.assign(renewalsList[editIndex], entry);
-    KTG.toast('Renewal entry has been updated.', 'success', 'Entry Updated');
-  }
-  bootstrap.Modal.getInstance(document.getElementById('renewalModal')).hide();
-  render();
+  $.post('ajax/renewals.php', payload).done((res) => {
+    if (res.success) {
+      bootstrap.Modal.getInstance(document.getElementById('renewalModal')).hide();
+      KTG.toast(editId === null ? 'Renewal entry has been added.' : 'Renewal entry has been updated.', 'success', editId === null ? 'Entry Added' : 'Entry Updated');
+      render();
+    } else {
+      $err.text(res.message || 'Could not save renewal entry.').removeClass('d-none');
+    }
+  }).fail(() => {
+    $err.text('Something went wrong. Please try again.').removeClass('d-none');
+  }).always(() => $btn.prop('disabled', false));
 }
 
-function deleteRenewal(index){
-  const r = renewalsList[index];
+function deleteRenewal(id){
+  const r = items.find(x => x.id === id);
+  if (!r) return;
   KTG.confirmDialog({
     title: 'Delete Renewal Entry?',
-    body: `This will remove tracking for "${r.project}".`,
+    body: `This will remove tracking for "${r.project_name}".`,
     confirmText: 'Delete', confirmClass: 'btn-danger',
-    onConfirm: () => { renewalsList.splice(index, 1); render(); KTG.toast('Renewal entry deleted.', 'danger', 'Deleted'); }
+    onConfirm: () => {
+      $.post('ajax/renewals.php', { action: 'delete', id }).done((res) => {
+        if (res.success) { KTG.toast('Renewal entry deleted.', 'danger', 'Deleted'); render(); }
+        else KTG.toast(res.message || 'Could not delete.', 'danger', 'Error');
+      });
+    }
   });
 }
 
 function exportRenewals(){
   const rows = [['S.No','Project','Customer','Type','Server','Domain Control','Live Link','Expiry Date','Renewal Type','Paid Status']];
-  renewalsList.forEach((r,i) => rows.push([i+1, r.project, r.customer, r.type, r.server, r.domainControl, r.liveLink, r.expiryDate, r.renewalType, r.paidStatus]));
+  items.forEach((r,i) => rows.push([i+1, r.project_name, r.customer_name, r.project_type_name||'', r.server_name||'', r.domain_control||'', r.live_link||'', r.expiry_date, r.renewal_type_name||'', r.paid_status_name||'']));
   KTG.exportCsv('Renewals.csv', rows);
   KTG.toast('Renewals exported as CSV (opens in Excel).', 'success', 'Export Ready');
 }
 
 /* ---------------- View Details ---------------- */
-let viewIndex = null;
-
-function openViewModal(index){
-  viewIndex = index;
-  const r = renewalsList[index];
-  const days = daysDiff(r.expiryDate);
+function openViewModal(id){
+  viewId = id;
+  const r = items.find(x => x.id === id);
+  if (!r) return;
+  const days = daysDiff(r.expiry_date);
   document.getElementById('viewRenewalBody').innerHTML = `
     <div class="d-flex align-items-start justify-content-between mb-3">
       <div>
-        <h5 class="mb-1">${r.project}</h5>
-        <div class="cell-sub">${r.customer} &middot; <span class="chip chip-inprogress">${r.type}</span></div>
+        <h5 class="mb-1">${r.project_name}</h5>
+        <div class="cell-sub">${r.customer_name} &middot; <span class="chip chip-inprogress">${r.project_type_name || '—'}</span></div>
       </div>
-      <span class="chip chip-${r.paidStatus.toLowerCase()==='paid'?'active':r.paidStatus.toLowerCase()==='unpaid'?'overdue':'pending'}">${r.paidStatus}</span>
+      <span class="chip chip-${paidChipClass(r.paid_status_name)}">${r.paid_status_name || '—'}</span>
     </div>
     <div class="row g-3">
       <div class="col-md-6">
         <div class="bill-block-label">Server</div>
-        <div class="fs-14 fw-600 mb-3"><i class="bi bi-hdd-network me-2 text-primary-KTG"></i>${r.server}</div>
+        <div class="fs-14 fw-600 mb-3"><i class="bi bi-hdd-network me-2 text-primary-KTG"></i>${r.server_name || '—'}</div>
         <div class="bill-block-label">Domain Control</div>
-        <div class="fs-14 mb-3">${r.domainControl}</div>
+        <div class="fs-14 mb-3">${r.domain_control || '—'}</div>
         <div class="bill-block-label">Renewal Type</div>
-        <div class="fs-14 mb-3"><span class="chip chip-inprogress">${r.renewalType}</span></div>
+        <div class="fs-14 mb-3"><span class="chip chip-inprogress">${r.renewal_type_name || '—'}</span></div>
       </div>
       <div class="col-md-6">
         <div class="bill-block-label">Expiry Date</div>
-        <div class="fs-14 fw-600 mb-1">${r.expiryDate}</div>
-        <div class="mb-3">${expiryBadge(r.expiryDate)} <span class="fs-12 text-muted">(${days<0?'expired':'expires in'} ${Math.abs(days)} day${Math.abs(days)===1?'':'s'})</span></div>
+        <div class="fs-14 fw-600 mb-1">${r.expiry_date}</div>
+        <div class="mb-3">${expiryBadge(r.expiry_date)} <span class="fs-12 text-muted">(${days<0?'expired':'expires in'} ${Math.abs(days)} day${Math.abs(days)===1?'':'s'})</span></div>
         <div class="bill-block-label">Paid Status</div>
-        <div class="fs-14 mb-3">${r.paidStatus}</div>
+        <div class="fs-14 mb-3">${r.paid_status_name || '—'}</div>
       </div>
       <div class="col-12">
         <div class="bill-block-label">Live Project Link &amp; Login Details</div>
-        <div class="section-card p-3 fs-13" style="background:var(--surface-alt); white-space:pre-wrap;">${r.liveLink}</div>
+        <div class="section-card p-3 fs-13" style="background:var(--surface-alt); white-space:pre-wrap;">${r.live_link || '—'}</div>
       </div>
     </div>`;
   new bootstrap.Modal(document.getElementById('viewRenewalModal')).show();
 }
 
-/* ---------------- Generate Invoice ---------------- */
-function openInvoiceModal(index){
-  const r = renewalsList[index];
-  const svc = KTG.Masters.services().find(s => /renewal/i.test(s.name)) || {rate: 5000};
+/* ---------------- Generate Invoice (preview only — Invoices module is a later phase) ---------------- */
+function openInvoiceModal(id){
+  const r = items.find(x => x.id === id);
+  if (!r) return;
   giContext = r;
-  document.getElementById('giProjectLabel').textContent = `${r.project} — ${r.customer}`;
-  document.getElementById('giDesc').textContent = `${r.renewalType} Renewal — ${r.project} (${r.server})`;
+  document.getElementById('giProjectLabel').textContent = `${r.project_name} — ${r.customer_name}`;
+  document.getElementById('giDesc').textContent = `${r.renewal_type_name || 'Renewal'} — ${r.project_name} (${r.server_name || 'hosting'})`;
   document.getElementById('giQty').value = 1;
-  document.getElementById('giRate').value = svc.rate;
+  document.getElementById('giRate').value = 5000;
   setGiGst(true);
   new bootstrap.Modal(document.getElementById('invoiceModal')).show();
 }
@@ -482,7 +521,6 @@ function calcGiTotals(){
 
 function openInvoicePreview(){
   const r = giContext;
-  const c = KTG.DATA.customers.find(x => x.name === r.customer);
   const qty = +document.getElementById('giQty').value || 0;
   const rate = +document.getElementById('giRate').value || 0;
   const subtotal = qty * rate;
@@ -491,20 +529,24 @@ function openInvoicePreview(){
   const taxAmount = Math.round(subtotal * percent / 100);
   const grandTotal = subtotal + taxAmount;
 
-  const data = {
-    docType: giGstEnabled ? 'TAX INVOICE' : 'BILL OF SUPPLY',
-    invNumber: 'INV-RENEWAL-' + r.id,
-    invDate: TODAY.toISOString().slice(0,10),
-    dueDate: r.expiryDate,
-    customer: c ? {name:c.name, gst:c.gst, address:c.address, mobile:c.mobile} : {name:r.customer, gst:'—', address:'—', mobile:'—'},
-    items: [{service: document.getElementById('giDesc').textContent, desc: r.liveLink, qty, rate}],
-    subtotal, taxType, percent, halfPercent: percent/2, taxAmount,
-    grandTotal, advancePaid: 0, balanceDue: grandTotal,
-    terms: `Renewal invoice for ${r.renewalType.toLowerCase()} hosting/domain renewal — ${r.project}. Please settle before the service expiry date to avoid downtime.`,
-    bank: {name:'Knock The Globe Technologies', account:'0012299171', bank:'Kotak Bank', ifsc:'KKBK0008775'}
-  };
-  sessionStorage.setItem('ktg_invoice_preview', JSON.stringify(data));
-  window.open('invoice-preview.php', '_blank');
+  const previewWin = window.open('', '_blank');
+  $.get('ajax/customers.php', { action: 'view', id: r.customer_id }).always((res) => {
+    const c = res && res.data;
+    const data = {
+      docType: giGstEnabled ? 'TAX INVOICE' : 'BILL OF SUPPLY',
+      invNumber: 'INV-RENEWAL-' + r.id,
+      invDate: new Date().toISOString().slice(0,10),
+      dueDate: r.expiry_date,
+      customer: c ? {name:c.name, gst:c.gst_number||'—', address:c.address||'—', mobile:c.mobile} : {name:r.customer_name, gst:'—', address:'—', mobile:'—'},
+      items: [{service: document.getElementById('giDesc').textContent, desc: r.live_link || '', qty, rate}],
+      subtotal, taxType, percent, halfPercent: percent/2, taxAmount,
+      grandTotal, advancePaid: 0, balanceDue: grandTotal,
+      terms: `Renewal invoice for ${(r.renewal_type_name||'').toLowerCase()} hosting/domain renewal — ${r.project_name}. Please settle before the service expiry date to avoid downtime.`,
+      bank: {name:'Knock The Globe Technologies', account:'0012299171', bank:'Kotak Bank', ifsc:'KKBK0008775'}
+    };
+    sessionStorage.setItem('ktg_invoice_preview', JSON.stringify(data));
+    if (previewWin) previewWin.location = 'invoice-preview.php';
+  });
 }
 JS;
 ?>
