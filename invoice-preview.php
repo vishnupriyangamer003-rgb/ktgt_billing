@@ -36,16 +36,54 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="assets/js/app.js?v=<?php echo @filemtime(__DIR__ . '/assets/js/app.js') ?: time(); ?>"></script>
 <script>
+function showEmpty(msg){
+  document.getElementById('billRoot').innerHTML = `<div class="empty-state"><div class="es-icon"><i class="bi bi-receipt"></i></div><h6>No invoice data found</h6><p>${msg}</p></div>`;
+}
+
+function mapInvoiceToPreviewData(inv){
+  return {
+    docType: inv.doc_type,
+    gstType: inv.gst_type,
+    invNumber: inv.invoice_number,
+    invDate: inv.invoice_date,
+    dueDate: inv.due_date,
+    customer: { name: inv.customer_name, gst: inv.customer_gst, address: inv.customer_address, mobile: inv.customer_mobile },
+    items: inv.items,
+    subtotal: +inv.subtotal, discount: +inv.discount,
+    taxType: inv.tax_type, percent: +inv.tax_percent, halfPercent: +inv.tax_percent / 2, taxAmount: +inv.tax_amount, roundOff: +inv.round_off,
+    grandTotal: +inv.grand_total, advancePaid: +inv.advance_paid, balanceDue: +inv.balance_due,
+    terms: inv.terms,
+    bank: {name:'Knock The Globe Technologies', account:'0012299171', bank:'Kotak Bank', ifsc:'KKBK0008775'}
+  };
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  const raw = sessionStorage.getItem('ktg_invoice_preview');
-  const root = document.getElementById('billRoot');
-  if (!raw) {
-    root.innerHTML = `<div class="empty-state"><div class="es-icon"><i class="bi bi-receipt"></i></div><h6>No invoice data found</h6><p>Go back and click Preview from the Create Invoice page.</p></div>`;
+  const id = new URLSearchParams(location.search).get('id');
+
+  if (id) {
+    jQuery.get('ajax/invoices.php', { action: 'view', id }).done((res) => {
+      if (!res.success) { showEmpty(res.message || 'Invoice not found.'); return; }
+      renderBill(mapInvoiceToPreviewData(res.data));
+    }).fail((xhr) => {
+      const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Could not load this invoice.';
+      showEmpty(msg);
+    });
     return;
   }
-  const d = JSON.parse(raw);
+
+  const raw = sessionStorage.getItem('ktg_invoice_preview');
+  if (!raw) {
+    showEmpty('Go back and click Preview from the Create Invoice page.');
+    return;
+  }
+  renderBill(JSON.parse(raw));
+});
+
+function renderBill(d){
+  const root = document.getElementById('billRoot');
   const rows = d.items.map(it => `
     <tr>
       <td><span class="bill-to-name" style="font-size:13px;">${it.service}</span>${it.desc ? `<div class="bill-to-meta">${it.desc}</div>` : ''}</td>
@@ -127,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
     KTG.toast('Use the Print dialog and choose "Save as PDF" as the destination.', 'primary', 'Generating PDF');
     window.print();
   });
-});
+}
 </script>
 </body>
 </html>

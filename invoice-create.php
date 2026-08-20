@@ -38,15 +38,15 @@ include __DIR__ . '/components/header.php';
 ?>
       <div class="page-head fade-in-up">
         <div>
-          <h1>Create Invoice</h1>
-          <nav class="breadcrumb"><span class="breadcrumb-item"><a href="index.php">Dashboard</a></span><span class="breadcrumb-item"><a href="invoice-list.php">Invoices</a></span><span class="breadcrumb-item active">New</span></nav>
+          <h1 id="pageHeading">Create Invoice</h1>
+          <nav class="breadcrumb"><span class="breadcrumb-item"><a href="index.php">Dashboard</a></span><span class="breadcrumb-item"><a href="invoice-list.php">Invoices</a></span><span class="breadcrumb-item active" id="pageBreadcrumbActive">New</span></nav>
         </div>
         <div class="d-flex gap-2 flex-wrap">
           <button class="btn btn-light" id="previewBtn"><i class="bi bi-eye me-1"></i>Preview</button>
           <button class="btn btn-light" id="printBtn"><i class="bi bi-printer me-1"></i>Print</button>
           <button class="btn btn-light" id="downloadBtn"><i class="bi bi-download me-1"></i>Download PDF</button>
-          <button class="btn btn-outline-primary"><i class="bi bi-send me-1"></i>Send</button>
-          <button class="btn btn-outline-primary"><i class="bi bi-share me-1"></i>Share</button>
+          <button class="btn btn-outline-primary" id="sendBtn"><i class="bi bi-send me-1"></i>Send</button>
+          <button class="btn btn-outline-primary" id="shareBtn"><i class="bi bi-share me-1"></i>Share</button>
           <a class="btn btn-primary" id="paymentEntryLink" href="payments.php"><i class="bi bi-cash-coin me-1"></i>Payment Entry</a>
         </div>
       </div>
@@ -102,9 +102,9 @@ include __DIR__ . '/components/header.php';
           </div>
           <div class="col-md-6">
             <table class="bill-meta-table w-100">
-              <tr><td>Invoice Number</td><td><span id="invNumberDisplay">INV-2026-0151</span></td></tr>
-              <tr><td>Invoice Date</td><td><input type="date" class="form-control form-control-sm d-inline-block w-auto" id="invDate" value="2026-07-25"></td></tr>
-              <tr><td>Due Date</td><td><input type="date" class="form-control form-control-sm d-inline-block w-auto" id="dueDate" value="2026-08-08"></td></tr>
+              <tr><td>Invoice Number</td><td><span id="invNumberDisplay">—</span></td></tr>
+              <tr><td>Invoice Date</td><td><input type="date" class="form-control form-control-sm d-inline-block w-auto" id="invDate"></td></tr>
+              <tr><td>Due Date</td><td><input type="date" class="form-control form-control-sm d-inline-block w-auto" id="dueDate"></td></tr>
             </table>
           </div>
         </div>
@@ -158,23 +158,23 @@ include __DIR__ . '/components/header.php';
           <div class="section-card fade-in-up h-100">
             <div class="section-head"><h5>Status &amp; Save</h5></div>
             <div class="section-body">
-              <select class="form-select mb-3">
-                <option>Draft</option><option>Pending</option><option>Partially Paid</option><option selected>Paid</option><option>Overdue</option><option>Cancelled</option>
+              <select class="form-select mb-3" id="statusSelect">
+                <option value="draft">Draft</option>
+                <option value="pending" selected>Pending</option>
+                <option value="partial">Partially Paid</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+                <option value="cancelled">Cancelled</option>
               </select>
-              <button class="btn btn-primary w-100"><i class="bi bi-save me-1"></i>Save Invoice</button>
+              <button class="btn btn-primary w-100" id="saveInvoiceBtn"><i class="bi bi-save me-1"></i>Save Invoice</button>
             </div>
           </div>
         </div>
         <div class="col-md-6">
           <div class="section-card fade-in-up h-100">
             <div class="section-head"><h5>Payment History</h5></div>
-            <div class="table-responsive">
-              <table class="table table-modern mb-0">
-                <thead><tr><th>Payment ID</th><th>Date</th><th>Amount</th><th>Mode</th></tr></thead>
-                <tbody>
-                  <tr><td class="cell-title">PAY-1042</td><td>26 Jul 2026</td><td class="fw-600 text-success">₹1,85,000</td><td><span class="chip chip-inprogress">UPI</span></td></tr>
-                </tbody>
-              </table>
+            <div class="section-body">
+              <div class="empty-state py-4"><div class="es-icon"><i class="bi bi-cash-coin"></i></div><h6>Not available yet</h6><p>This will be available once the Payments module is connected to Invoices.</p></div>
             </div>
           </div>
         </div>
@@ -185,51 +185,115 @@ $pageScript = <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(init, 150));
 let gstEnabled = true;
 let items = [];
+let customers = [];
+let services = [];
+let editingId = null;
 
 function emptyItem(){ return {service:'', desc:'', qty:'', rate:''}; }
 
+function customerOptionLabel(c){
+  const company = (c.company_name || '').trim();
+  if (!company || company.toLowerCase() === (c.name || '').trim().toLowerCase()) return c.name;
+  return `${c.name} — ${company}`;
+}
+
 function init(){
-  const custSelect = document.getElementById('customerSelect');
-  custSelect.innerHTML = '<option value="">Select customer...</option>' + KTG.DATA.customers.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
-  custSelect.addEventListener('change', onCustomerChange);
-  onCustomerChange();
+  editingId = +KTG.qs('id') || null;
 
-  const taxSelect = document.getElementById('taxSelect');
-  taxSelect.innerHTML = KTG.Masters.taxes().filter(t => t.percent > 0).map(t => `<option value="${t.percent}">${t.name}</option>`).join('');
-  taxSelect.addEventListener('change', calcTotals);
-  document.getElementById('taxTypeSelect').addEventListener('change', calcTotals);
+  $.when(
+    $.get('ajax/invoices.php', { action: 'customer_options' }),
+    $.get('ajax/masters.php', { master: 'taxes', action: 'list' }),
+    $.get('ajax/masters.php', { master: 'services', action: 'list' })
+  ).done((custRes, taxRes, svcRes) => {
+    customers = custRes[0].data || [];
+    const custSelect = document.getElementById('customerSelect');
+    custSelect.innerHTML = '<option value="">Select customer...</option>' + customers.map(c => `<option value="${c.id}">${KTG.escAttr(customerOptionLabel(c))}</option>`).join('');
+    custSelect.addEventListener('change', onCustomerChange);
 
-  items = [emptyItem()];
-  renderItems();
-  refreshInvoiceNumber();
-  refreshLetterhead();
+    const taxSelect = document.getElementById('taxSelect');
+    taxSelect.innerHTML = (taxRes[0].data || []).filter(t => +t.percent > 0).map(t => `<option value="${t.percent}">${t.name}</option>`).join('');
+    taxSelect.addEventListener('change', calcTotals);
+    document.getElementById('taxTypeSelect').addEventListener('change', calcTotals);
 
-  document.getElementById('addItemBtn').addEventListener('click', () => {
-    items.push(emptyItem());
-    renderItems();
+    services = svcRes[0].data || [];
+
+    document.getElementById('addItemBtn').addEventListener('click', () => {
+      items.push(emptyItem());
+      renderItems();
+    });
+    document.getElementById('withGstBtn').addEventListener('click', () => setGst(true));
+    document.getElementById('withoutGstBtn').addEventListener('click', () => setGst(false));
+    document.getElementById('advancePaid').addEventListener('input', calcTotals);
+    document.getElementById('discountAmount').addEventListener('input', calcTotals);
+    document.getElementById('grandTotalInput').addEventListener('input', onGrandTotalChange);
+    document.getElementById('previewBtn').addEventListener('click', () => openPreview(false));
+    document.getElementById('printBtn').addEventListener('click', () => openPreview(true));
+    document.getElementById('downloadBtn').addEventListener('click', () => openPreview(true));
+    document.getElementById('saveInvoiceBtn').addEventListener('click', saveInvoice);
+    document.getElementById('sendBtn').addEventListener('click', () => KTG.toast('Sending is not available yet.', 'primary', 'Coming Soon'));
+    document.getElementById('shareBtn').addEventListener('click', () => KTG.toast('Sharing is not available yet.', 'primary', 'Coming Soon'));
+
+    if (editingId) {
+      loadInvoice(editingId);
+    } else {
+      items = [emptyItem()];
+      renderItems();
+      document.getElementById('invDate').value = new Date().toISOString().slice(0,10);
+      onCustomerChange();
+      refreshInvoiceNumber();
+      refreshLetterhead();
+    }
   });
-  document.getElementById('withGstBtn').addEventListener('click', () => setGst(true));
-  document.getElementById('withoutGstBtn').addEventListener('click', () => setGst(false));
-  document.getElementById('advancePaid').addEventListener('input', calcTotals);
-  document.getElementById('discountAmount').addEventListener('input', calcTotals);
-  document.getElementById('grandTotalInput').addEventListener('input', onGrandTotalChange);
-  document.getElementById('previewBtn').addEventListener('click', () => openPreview(false));
-  document.getElementById('printBtn').addEventListener('click', () => openPreview(true));
-  document.getElementById('downloadBtn').addEventListener('click', () => openPreview(true));
+}
+
+function loadInvoice(id){
+  $.get('ajax/invoices.php', { action: 'view', id }).done((res) => {
+    if (!res.success) { KTG.toast(res.message || 'Invoice not found.', 'danger', 'Error'); return; }
+    applyInvoiceData(res.data);
+  }).fail(() => {
+    KTG.toast('Could not load this invoice.', 'danger', 'Error');
+  });
+}
+
+function applyInvoiceData(inv){
+  document.getElementById('pageHeading').textContent = 'Edit Invoice';
+  document.getElementById('pageBreadcrumbActive').textContent = inv.invoice_number;
+  document.getElementById('saveInvoiceBtn').innerHTML = '<i class="bi bi-save me-1"></i>Update Invoice';
+
+  items = (inv.items || []).map(it => ({service: it.service, desc: it.desc, qty: it.qty, rate: it.rate}));
+  if (!items.length) items.push(emptyItem());
+  items.push(emptyItem());
+
+  document.getElementById('customerSelect').value = inv.customer_id;
+  document.getElementById('invDate').value = inv.invoice_date || '';
+  document.getElementById('dueDate').value = inv.due_date || '';
+  document.getElementById('termsText').value = inv.terms || '';
+  document.getElementById('discountAmount').value = +inv.discount || '';
+  document.getElementById('advancePaid').value = +inv.advance_paid || '';
+  document.getElementById('taxTypeSelect').value = inv.tax_type === 'igst' ? 'igst' : 'sgst_cgst';
+  if (+inv.tax_percent) document.getElementById('taxSelect').value = inv.tax_percent;
+  document.getElementById('statusSelect').value = inv.status;
+  document.getElementById('invNumberDisplay').textContent = inv.invoice_number;
+
+  renderItems();
+  onCustomerChange();
+  setGst(inv.gst_type !== 'nongst');
 }
 
 function onCustomerChange(){
-  const name = document.getElementById('customerSelect').value;
-  const c = KTG.DATA.customers.find(x => x.name === name);
+  const id = document.getElementById('customerSelect').value;
+  const c = customers.find(x => String(x.id) === String(id));
   const meta = document.getElementById('customerMeta');
-  document.getElementById('paymentEntryLink').href = name ? `payments.php?customer=${encodeURIComponent(name)}` : 'payments.php';
   if (!c) { meta.textContent = 'Select a customer to auto-fill billing details.'; return; }
-  const gstLine = gstEnabled ? `GST : ${c.gst}<br>` : '';
-  meta.innerHTML = `<span class="bill-to-name">${c.name}</span><br>${gstLine}${c.address}<br>${c.mobile}`;
+  const gstLine = gstEnabled && c.gst_number ? `GST : ${KTG.escAttr(c.gst_number)}<br>` : '';
+  meta.innerHTML = `<span class="bill-to-name">${KTG.escAttr(c.name)}</span><br>${gstLine}${KTG.escAttr(c.address || '—')}<br>${KTG.escAttr(c.mobile || '—')}`;
 }
 
 function refreshInvoiceNumber(){
-  document.getElementById('invNumberDisplay').textContent = KTG.nextInvoiceNumber(gstEnabled ? 'gst' : 'nongst');
+  if (editingId) return;
+  $.get('ajax/invoices.php', { action: 'next_number', gst_type: gstEnabled ? 'gst' : 'nongst' }).done((res) => {
+    if (res.success) document.getElementById('invNumberDisplay').textContent = res.data.invoice_number;
+  });
 }
 
 function refreshLetterhead(){
@@ -253,7 +317,6 @@ function setGst(state){
 }
 
 function renderItems(){
-  const services = KTG.Masters.services();
   const serviceOptions = (it) => `<option value="" ${it.service ? '' : 'selected'} disabled>Select Product</option>` +
     services.map(s => `<option value="${s.name}" ${s.name === it.service ? 'selected' : ''}>${s.name}</option>`).join('');
 
@@ -263,17 +326,17 @@ function renderItems(){
         <select class="form-select mb-1 no-search" onchange="onServiceChange(${i}, this.value)">
           ${serviceOptions(it)}
         </select>
-        <input class="form-control form-control-sm" placeholder="Description / link (optional)" value="${it.desc}" onchange="items[${i}].desc=this.value">
+        <input class="form-control form-control-sm" placeholder="Description / link (optional)" value="${KTG.escAttr(it.desc)}" onchange="items[${i}].desc=this.value">
       </td>
       <td><input type="number" class="form-control" placeholder="0" value="${it.qty}" onchange="items[${i}].qty=+this.value; calcTotals();"></td>
       <td><input type="number" class="form-control" placeholder="0" value="${it.rate}" onchange="items[${i}].rate=+this.value; calcTotals();"></td>
       <td class="fw-600 item-amount" data-i="${i}">₹0</td>
-      <td><button class="btn btn-sm btn-light" onclick="removeItem(${i})"><i class="bi bi-trash text-danger"></i></button></td>
+      <td><button class="btn btn-sm btn-light" type="button" onclick="removeItem(${i})"><i class="bi bi-trash text-danger"></i></button></td>
     </tr>`).join('');
 
   document.getElementById('itemsBodyMobile').innerHTML = items.map((it, i) => `
     <div class="ie2-item">
-      <button class="btn btn-sm btn-light ie2-remove" onclick="removeItem(${i})"><i class="bi bi-trash text-danger"></i></button>
+      <button class="btn btn-sm btn-light ie2-remove" type="button" onclick="removeItem(${i})"><i class="bi bi-trash text-danger"></i></button>
       <div class="ie2-field">
         <label>Product</label>
         <select class="form-select no-search" onchange="onServiceChange(${i}, this.value)">
@@ -282,7 +345,7 @@ function renderItems(){
       </div>
       <div class="ie2-field">
         <label>Description</label>
-        <textarea class="form-control" rows="2" onchange="items[${i}].desc=this.value">${it.desc}</textarea>
+        <textarea class="form-control" rows="2" onchange="items[${i}].desc=this.value">${KTG.escAttr(it.desc)}</textarea>
       </div>
       <div class="ie2-2col">
         <div class="ie2-field mb-0"><label>Qty</label><input type="number" class="form-control" placeholder="0" value="${it.qty}" onchange="items[${i}].qty=+this.value; calcTotals();"></div>
@@ -301,10 +364,10 @@ function removeItem(i){
 }
 
 function onServiceChange(i, name){
-  const svc = KTG.Masters.services().find(s => s.name === name);
+  const svc = services.find(s => s.name === name);
   if (!svc) return;
   items[i].service = svc.name;
-  items[i].rate = svc.rate;
+  items[i].rate = +svc.rate || 0;
   if (!items[i].qty) items[i].qty = 1;
   if (i === items.length - 1) items.push(emptyItem());
   renderItems();
@@ -368,8 +431,8 @@ function onGrandTotalChange(){
 }
 
 function openPreview(autoprint){
-  const name = document.getElementById('customerSelect').value;
-  const c = KTG.DATA.customers.find(x => x.name === name);
+  const id = document.getElementById('customerSelect').value;
+  const c = customers.find(x => String(x.id) === String(id));
   const realItems = items.filter(it => it.service);
   const subtotal = itemsSubtotal(realItems);
   const discount = Math.min(Math.max(+document.getElementById('discountAmount').value || 0, 0), subtotal);
@@ -387,7 +450,7 @@ function openPreview(autoprint){
     invNumber: document.getElementById('invNumberDisplay').textContent,
     invDate: document.getElementById('invDate').value,
     dueDate: document.getElementById('dueDate').value,
-    customer: c ? {name: c.name, gst: gstEnabled ? c.gst : '', address: c.address, mobile: c.mobile} : {name: name || '—', gst: '', address: '—', mobile: '—'},
+    customer: c ? {name: c.name, gst: gstEnabled ? (c.gst_number||'') : '', address: c.address||'—', mobile: c.mobile||'—'} : {name: '—', gst: '', address: '—', mobile: '—'},
     items: realItems,
     subtotal: Math.round(subtotal), discount: Math.round(discount),
     taxType, percent, halfPercent: percent/2, taxAmount: Math.round(taxAmount), roundOff,
@@ -397,6 +460,59 @@ function openPreview(autoprint){
   };
   sessionStorage.setItem('ktg_invoice_preview', JSON.stringify(data));
   window.open('invoice-preview.php' + (autoprint ? '?autoprint=1' : ''), '_blank');
+}
+
+function saveInvoice(){
+  const customerId = document.getElementById('customerSelect').value;
+  if (!customerId) { KTG.toast('Please select a customer.', 'danger', 'Missing Customer'); return; }
+  const realItems = items.filter(it => it.service);
+  if (!realItems.length) { KTG.toast('Please add at least one item.', 'danger', 'Missing Items'); return; }
+
+  const c = customers.find(x => String(x.id) === String(customerId));
+  const subtotal = itemsSubtotal(realItems);
+  const discount = Math.min(Math.max(+document.getElementById('discountAmount').value || 0, 0), subtotal);
+  const taxable = subtotal - discount;
+  const { percent, taxType, taxAmount } = currentTax(taxable);
+  const rawTotal = taxable + taxAmount;
+  const grandTotal = Math.round(rawTotal);
+  const roundOff = grandTotal - rawTotal;
+  const advance = +document.getElementById('advancePaid').value || 0;
+  const balanceDue = Math.max(grandTotal - advance, 0);
+
+  const payload = {
+    action: editingId ? 'edit' : 'add',
+    id: editingId,
+    customer_id: customerId,
+    gst_type: gstEnabled ? 'gst' : 'nongst',
+    doc_type: document.getElementById('docTypeLabel').textContent,
+    invoice_date: document.getElementById('invDate').value,
+    due_date: document.getElementById('dueDate').value,
+    customer_name: c ? c.name : '',
+    customer_gst: c ? (c.gst_number || '') : '',
+    customer_address: c ? (c.address || '') : '',
+    customer_mobile: c ? (c.mobile || '') : '',
+    items: JSON.stringify(realItems),
+    subtotal: Math.round(subtotal), discount: Math.round(discount),
+    tax_type: taxType, tax_percent: percent, tax_amount: Math.round(taxAmount),
+    round_off: roundOff, grand_total: grandTotal, advance_paid: advance, balance_due: balanceDue,
+    status: document.getElementById('statusSelect').value,
+    terms: document.getElementById('termsText').value
+  };
+
+  const $btn = $('#saveInvoiceBtn').prop('disabled', true);
+  $.post('ajax/invoices.php', payload).done((res) => {
+    if (!res.success) { KTG.toast(res.message || 'Could not save the invoice.', 'danger', 'Error'); $btn.prop('disabled', false); return; }
+    KTG.toast(res.message || 'Invoice saved.', 'success', 'Saved');
+    if (!editingId) {
+      window.location.href = 'invoice-create.php?id=' + res.data.id;
+    } else {
+      $btn.prop('disabled', false);
+    }
+  }).fail((xhr) => {
+    const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Could not save the invoice.';
+    KTG.toast(msg, 'danger', 'Error');
+    $btn.prop('disabled', false);
+  });
 }
 JS;
 ?>
