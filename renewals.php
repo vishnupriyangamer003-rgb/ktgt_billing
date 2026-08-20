@@ -148,7 +148,7 @@ $pageModals = <<<'HTML'
 <div class="modal fade" id="invoiceModal" tabindex="-1">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title"><i class="bi bi-receipt text-primary-KTG me-2"></i>Generate Renewal Invoice</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-header"><h5 class="modal-title" id="giModalTitle"><i class="bi bi-receipt text-primary-KTG me-2"></i>Generate Renewal Invoice</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body" style="background:var(--surface-alt);">
 
         <!-- Tax mode -->
@@ -249,7 +249,8 @@ $pageModals = <<<'HTML'
       </div>
       <div class="modal-footer">
         <button class="btn btn-light" data-bs-dismiss="modal">Close</button>
-        <button class="btn btn-primary" id="giPreviewBtn"><i class="bi bi-eye me-1"></i>Preview &amp; Print Invoice</button>
+        <button class="btn btn-outline-primary" id="giPreviewBtn"><i class="bi bi-eye me-1"></i>Preview &amp; Print</button>
+        <button class="btn btn-primary" id="giSaveBtn"><i class="bi bi-save me-1"></i>Save Invoice</button>
       </div>
     </div>
   </div>
@@ -322,6 +323,7 @@ function init(){
   document.getElementById('giAdvancePaid').addEventListener('input', calcGiTotals);
   document.getElementById('giGrandTotalInput').addEventListener('input', giOnGrandTotalChange);
   document.getElementById('giPreviewBtn').addEventListener('click', openInvoicePreview);
+  document.getElementById('giSaveBtn').addEventListener('click', giSaveInvoice);
 
   document.getElementById('viewEditBtn').addEventListener('click', () => {
     bootstrap.Modal.getInstance(document.getElementById('viewRenewalModal')).hide();
@@ -420,7 +422,9 @@ function renderList(){
           <div class="dropdown">
             <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
             <div class="dropdown-menu dropdown-menu-end">
-              <a class="dropdown-item" href="#" onclick="openInvoiceModal(${r.id}); return false;"><i class="bi bi-receipt"></i>Generate Invoice</a>
+              ${r.invoice_id
+                ? `<a class="dropdown-item" href="#" onclick="openInvoiceModal(${r.id}); return false;"><i class="bi bi-receipt"></i>View Invoice</a>`
+                : `<a class="dropdown-item" href="#" onclick="openInvoiceModal(${r.id}); return false;"><i class="bi bi-receipt"></i>Generate Invoice</a>`}
               <a class="dropdown-item" href="#" onclick="openModal(${r.id}); return false;"><i class="bi bi-pencil"></i>Edit</a>
               <div class="dropdown-divider"></div>
               <a class="dropdown-item text-danger" href="#" onclick="deleteRenewal(${r.id}); return false;"><i class="bi bi-trash"></i>Delete</a>
@@ -543,6 +547,9 @@ function openViewModal(id){
   viewId = id;
   const r = items.find(x => x.id === id);
   if (!r) return;
+  document.getElementById('viewInvoiceBtn').innerHTML = r.invoice_id
+    ? '<i class="bi bi-receipt me-1"></i>View Invoice'
+    : '<i class="bi bi-receipt me-1"></i>Generate Invoice';
   const days = daysDiff(r.expiry_date);
   document.getElementById('viewRenewalBody').innerHTML = `
     <div class="d-flex align-items-start justify-content-between mb-3">
@@ -585,6 +592,33 @@ function openInvoiceModal(id){
   giContext = r;
   giCustomer = null;
 
+  document.getElementById('giModalTitle').innerHTML = r.invoice_id
+    ? `<i class="bi bi-receipt text-primary-KTG me-2"></i>Renewal Invoice — ${KTG.escAttr(r.invoice_number || '')}`
+    : '<i class="bi bi-receipt text-primary-KTG me-2"></i>Generate Renewal Invoice';
+  document.getElementById('giSaveBtn').innerHTML = r.invoice_id
+    ? '<i class="bi bi-save me-1"></i>Update Invoice'
+    : '<i class="bi bi-save me-1"></i>Save Invoice';
+
+  document.getElementById('giCustomerBlock').textContent = 'Loading customer…';
+  $.get('ajax/customers.php', { action: 'view', id: r.customer_id }).always((res) => {
+    giCustomer = (res && res.data) || null;
+    giRenderCustomer();
+  });
+
+  if (r.invoice_id) {
+    $.get('ajax/renewals.php', { action: 'invoice_view', renewal_id: id }).done((res) => {
+      giLoadSavedInvoice(res.data);
+    }).fail(() => {
+      giBuildFreshInvoice(r);
+    });
+  } else {
+    giBuildFreshInvoice(r);
+  }
+
+  new bootstrap.Modal(document.getElementById('invoiceModal')).show();
+}
+
+function giBuildFreshInvoice(r){
   giItems = [giEmptyItem()];
   const preset = giServices.find(s => (r.renewal_type_name || '').toLowerCase().includes((s.name || '').toLowerCase()));
   if (preset) {
@@ -599,18 +633,25 @@ function openInvoiceModal(id){
   document.getElementById('giTermsText').value = `Renewal invoice for ${(r.renewal_type_name||'').toLowerCase()} hosting/domain renewal — ${r.project_name}. Please settle before the service expiry date to avoid downtime.`;
   document.getElementById('giDiscountAmount').value = '';
   document.getElementById('giAdvancePaid').value = '';
-
-  document.getElementById('giCustomerBlock').textContent = 'Loading customer…';
-  $.get('ajax/customers.php', { action: 'view', id: r.customer_id }).done((res) => {
-    giCustomer = res.data || null;
-    giRenderCustomer();
-  }).fail(() => {
-    giCustomer = null;
-    giRenderCustomer();
-  });
-
   setGiGst(true);
-  new bootstrap.Modal(document.getElementById('invoiceModal')).show();
+}
+
+function giLoadSavedInvoice(inv){
+  giItems = (inv.items || []).map(it => ({service: it.service, desc: it.desc, qty: it.qty, rate: it.rate}));
+  if (!giItems.length) giItems.push(giEmptyItem());
+  giItems.push(giEmptyItem());
+  renderGiItems();
+
+  document.getElementById('giInvNumberDisplay').textContent = inv.invoice_number || '';
+  document.getElementById('giInvDate').value = inv.invoice_date || '';
+  document.getElementById('giDueDate').value = inv.due_date || '';
+  document.getElementById('giTermsText').value = inv.terms || '';
+  document.getElementById('giDiscountAmount').value = +inv.discount || '';
+  document.getElementById('giAdvancePaid').value = +inv.advance_paid || '';
+  document.getElementById('giTaxType').value = inv.tax_type === 'igst' ? 'igst' : 'sgst_cgst';
+  if (+inv.tax_percent) document.getElementById('giTaxRate').value = inv.tax_percent;
+
+  setGiGst(inv.gst_type !== 'nongst');
 }
 
 function giRenderCustomer(){
@@ -785,6 +826,56 @@ function openInvoicePreview(){
   };
   sessionStorage.setItem('ktg_invoice_preview', JSON.stringify(data));
   window.open('invoice-preview.php', '_blank');
+}
+
+function giSaveInvoice(){
+  const r = giContext;
+  if (!r) return;
+  const realItems = giItems.filter(it => it.service);
+  if (!realItems.length) { KTG.toast('Please add at least one item before saving.', 'danger', 'Error'); return; }
+
+  const c = giCustomer;
+  const subtotal = giItemsSubtotal(realItems);
+  const discount = Math.min(Math.max(+document.getElementById('giDiscountAmount').value || 0, 0), subtotal);
+  const taxable = subtotal - discount;
+  const { percent, taxType, taxAmount } = giCurrentTax(taxable);
+  const rawTotal = taxable + taxAmount;
+  const grandTotal = Math.round(rawTotal);
+  const roundOff = grandTotal - rawTotal;
+  const advance = +document.getElementById('giAdvancePaid').value || 0;
+  const balanceDue = Math.max(grandTotal - advance, 0);
+
+  const payload = {
+    action: 'invoice_save',
+    renewal_id: r.id,
+    invoice_number: document.getElementById('giInvNumberDisplay').textContent,
+    gst_type: giGstEnabled ? 'gst' : 'nongst',
+    doc_type: document.getElementById('giDocTypeLabel').textContent,
+    invoice_date: document.getElementById('giInvDate').value,
+    due_date: document.getElementById('giDueDate').value,
+    customer_name: c ? c.name : (r.customer_name || ''),
+    customer_gst: c ? (c.gst_number || '') : '',
+    customer_address: c ? (c.address || '') : '',
+    customer_mobile: c ? (c.mobile || '') : '',
+    items: JSON.stringify(realItems),
+    subtotal: Math.round(subtotal), discount: Math.round(discount),
+    tax_type: taxType, tax_percent: percent, tax_amount: Math.round(taxAmount),
+    round_off: roundOff, grand_total: grandTotal, advance_paid: advance, balance_due: balanceDue,
+    terms: document.getElementById('giTermsText').value
+  };
+
+  const $btn = $('#giSaveBtn').prop('disabled', true);
+  $.post('ajax/renewals.php', payload).done((res) => {
+    KTG.toast(res.message || 'Invoice saved.', 'success', 'Saved');
+    r.invoice_id = res.data.invoice_id;
+    r.invoice_number = res.data.invoice_number;
+    renderList();
+    document.getElementById('giModalTitle').innerHTML = `<i class="bi bi-receipt text-primary-KTG me-2"></i>Renewal Invoice — ${KTG.escAttr(r.invoice_number || '')}`;
+    document.getElementById('giSaveBtn').innerHTML = '<i class="bi bi-save me-1"></i>Update Invoice';
+  }).fail((xhr) => {
+    const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Could not save the invoice. Please try again.';
+    KTG.toast(msg, 'danger', 'Error');
+  }).always(() => $btn.prop('disabled', false));
 }
 JS;
 ?>

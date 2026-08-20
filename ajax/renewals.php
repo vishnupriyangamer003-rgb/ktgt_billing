@@ -12,13 +12,15 @@ $action = $_REQUEST['action'] ?? 'list';
 $userId = current_user()['id'] ?? null;
 
 const RENEWAL_SELECT = "SELECT r.*, c.name AS customer_name, pt.name AS project_type_name,
-    sv.name AS server_name, rt.name AS renewal_type_name, ps.name AS paid_status_name
+    sv.name AS server_name, rt.name AS renewal_type_name, ps.name AS paid_status_name,
+    ri.id AS invoice_id, ri.invoice_number AS invoice_number
     FROM renewals r
     JOIN customers c ON c.id = r.customer_id
     LEFT JOIN master_project_types pt ON pt.id = r.project_type_id
     LEFT JOIN master_servers sv ON sv.id = r.server_id
     LEFT JOIN master_renewal_types rt ON rt.id = r.renewal_type_id
-    LEFT JOIN master_paid_status_types ps ON ps.id = r.paid_status_id";
+    LEFT JOIN master_paid_status_types ps ON ps.id = r.paid_status_id
+    LEFT JOIN renewal_invoices ri ON ri.renewal_id = r.id";
 
 /** Optionally-referenced master id: validates it points at an active row, or returns null. */
 function optional_master_id(string $field, string $table): ?int {
@@ -162,6 +164,125 @@ if ($action === 'delete') {
     $stmt = db()->prepare('UPDATE renewals SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id = ? AND is_deleted = 0');
     $stmt->execute([$userId, $id]);
     json_success([], 'Renewal entry deleted successfully.');
+}
+
+/** Sanitizes the posted items array into a clean list of {service, desc, qty, rate}. */
+function validate_invoice_items(): array {
+    $raw = json_decode($_POST['items'] ?? '[]', true);
+    if (!is_array($raw)) json_error('Invalid items data.');
+    $items = [];
+    foreach ($raw as $it) {
+        $service = clean($it['service'] ?? '');
+        if ($service === '') continue;
+        $items[] = [
+            'service' => $service,
+            'desc' => clean($it['desc'] ?? ''),
+            'qty' => (float)($it['qty'] ?? 0),
+            'rate' => (float)($it['rate'] ?? 0),
+        ];
+    }
+    if (!count($items)) json_error('Please add at least one item.');
+    return $items;
+}
+
+function validate_invoice_input(): array {
+    $renewalId = (int)($_POST['renewal_id'] ?? 0);
+    if ($renewalId <= 0) json_error('Invalid renewal entry.');
+    $chk = db()->prepare('SELECT id FROM renewals WHERE id = ? AND is_deleted = 0');
+    $chk->execute([$renewalId]);
+    if (!$chk->fetch()) json_error('This renewal entry no longer exists.');
+
+    $invoiceNumber = clean($_POST['invoice_number'] ?? '');
+    if ($invoiceNumber === '') json_error('Invoice number is required.');
+
+    $invoiceDate = clean($_POST['invoice_date'] ?? '');
+    if ($invoiceDate === '' || !DateTime::createFromFormat('Y-m-d', $invoiceDate)) {
+        json_error('Please choose a valid invoice date.');
+    }
+    $dueDate = clean($_POST['due_date'] ?? '');
+    if ($dueDate !== '' && !DateTime::createFromFormat('Y-m-d', $dueDate)) {
+        json_error('Please choose a valid due date.');
+    }
+
+    return [
+        'renewal_id' => $renewalId,
+        'invoice_number' => $invoiceNumber,
+        'gst_type' => ($_POST['gst_type'] ?? 'gst') === 'nongst' ? 'nongst' : 'gst',
+        'doc_type' => clean($_POST['doc_type'] ?? 'TAX INVOICE'),
+        'invoice_date' => $invoiceDate,
+        'due_date' => $dueDate !== '' ? $dueDate : null,
+        'customer_name' => clean($_POST['customer_name'] ?? ''),
+        'customer_gst' => clean($_POST['customer_gst'] ?? ''),
+        'customer_address' => clean($_POST['customer_address'] ?? ''),
+        'customer_mobile' => clean($_POST['customer_mobile'] ?? ''),
+        'items_json' => json_encode(validate_invoice_items()),
+        'subtotal' => (float)($_POST['subtotal'] ?? 0),
+        'discount' => (float)($_POST['discount'] ?? 0),
+        'tax_type' => clean($_POST['tax_type'] ?? 'none'),
+        'tax_percent' => (float)($_POST['tax_percent'] ?? 0),
+        'tax_amount' => (float)($_POST['tax_amount'] ?? 0),
+        'round_off' => (float)($_POST['round_off'] ?? 0),
+        'grand_total' => (float)($_POST['grand_total'] ?? 0),
+        'advance_paid' => (float)($_POST['advance_paid'] ?? 0),
+        'balance_due' => (float)($_POST['balance_due'] ?? 0),
+        'terms' => clean($_POST['terms'] ?? ''),
+    ];
+}
+
+if ($action === 'invoice_view') {
+    $renewalId = (int)($_GET['renewal_id'] ?? 0);
+    if ($renewalId <= 0) json_error('Invalid record.');
+    $stmt = db()->prepare('SELECT * FROM renewal_invoices WHERE renewal_id = ?');
+    $stmt->execute([$renewalId]);
+    $row = $stmt->fetch();
+    if (!$row) json_error('Invoice not found for this renewal entry.', 404);
+    $row['items'] = json_decode($row['items_json'], true) ?: [];
+    unset($row['items_json']);
+    json_success($row);
+}
+
+if ($action === 'invoice_save') {
+    verify_csrf();
+    $data = validate_invoice_input();
+
+    $existing = db()->prepare('SELECT id FROM renewal_invoices WHERE renewal_id = ?');
+    $existing->execute([$data['renewal_id']]);
+    $existingRow = $existing->fetch();
+
+    if ($existingRow) {
+        $stmt = db()->prepare('UPDATE renewal_invoices SET
+            invoice_number=?, gst_type=?, doc_type=?, invoice_date=?, due_date=?,
+            customer_name=?, customer_gst=?, customer_address=?, customer_mobile=?,
+            items_json=?, subtotal=?, discount=?, tax_type=?, tax_percent=?, tax_amount=?,
+            round_off=?, grand_total=?, advance_paid=?, balance_due=?, terms=?, updated_by=?
+            WHERE renewal_id=?');
+        $stmt->execute([
+            $data['invoice_number'], $data['gst_type'], $data['doc_type'], $data['invoice_date'], $data['due_date'],
+            $data['customer_name'], $data['customer_gst'], $data['customer_address'], $data['customer_mobile'],
+            $data['items_json'], $data['subtotal'], $data['discount'], $data['tax_type'], $data['tax_percent'], $data['tax_amount'],
+            $data['round_off'], $data['grand_total'], $data['advance_paid'], $data['balance_due'], $data['terms'], $userId,
+            $data['renewal_id'],
+        ]);
+        $invoiceId = (int)$existingRow['id'];
+        $message = 'Invoice updated successfully.';
+    } else {
+        $stmt = db()->prepare('INSERT INTO renewal_invoices
+            (renewal_id, invoice_number, gst_type, doc_type, invoice_date, due_date,
+             customer_name, customer_gst, customer_address, customer_mobile,
+             items_json, subtotal, discount, tax_type, tax_percent, tax_amount,
+             round_off, grand_total, advance_paid, balance_due, terms, created_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $stmt->execute([
+            $data['renewal_id'], $data['invoice_number'], $data['gst_type'], $data['doc_type'], $data['invoice_date'], $data['due_date'],
+            $data['customer_name'], $data['customer_gst'], $data['customer_address'], $data['customer_mobile'],
+            $data['items_json'], $data['subtotal'], $data['discount'], $data['tax_type'], $data['tax_percent'], $data['tax_amount'],
+            $data['round_off'], $data['grand_total'], $data['advance_paid'], $data['balance_due'], $data['terms'], $userId,
+        ]);
+        $invoiceId = (int)db()->lastInsertId();
+        $message = 'Invoice saved successfully.';
+    }
+
+    json_success(['invoice_id' => $invoiceId, 'invoice_number' => $data['invoice_number']], $message);
 }
 
 json_error('Unknown action.', 400);
