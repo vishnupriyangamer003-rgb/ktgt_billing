@@ -522,7 +522,13 @@ const KTG = (() => {
 
       const onDocMouseDown = (e) => { if (!panel.contains(e.target) && e.target !== trigger) closeOpen(); };
       const onKeydown = (e) => { if (e.key === 'Escape') closeOpen(); };
-      const onScrollResize = () => closeOpen();
+      // Capture-phase 'scroll' on window fires for scrolling ANY descendant, including the
+      // options list itself — without this guard, the panel closed the instant you tried to
+      // scroll it. Only treat it as "the page behind it scrolled" if it didn't originate here.
+      const onScrollResize = (e) => {
+        if (e.target && e.target.nodeType && panel.contains(e.target)) return;
+        closeOpen();
+      };
       document.addEventListener('mousedown', onDocMouseDown, true);
       document.addEventListener('keydown', onKeydown, true);
       window.addEventListener('scroll', onScrollResize, true);

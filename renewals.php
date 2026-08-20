@@ -139,17 +139,14 @@ $pageModals = <<<'HTML'
           </div>
           <div class="col-md-6"><label class="form-label">GST Rate</label><select class="form-select" id="giTaxRate"></select></div>
         </div>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="bill-block-label mb-0">Items &amp; Services</div>
+          <button class="btn btn-sm btn-soft-primary" type="button" id="giAddItemBtn"><i class="bi bi-plus-lg me-1"></i>Add Item</button>
+        </div>
         <div class="table-responsive mb-3">
-          <table class="table table-modern mb-0">
-            <thead><tr><th>Description</th><th class="col-qty">Qty</th><th style="width:130px;">Rate</th><th style="width:130px;">Amount</th></tr></thead>
-            <tbody>
-              <tr>
-                <td id="giDesc" class="fw-600"></td>
-                <td><input type="number" class="form-control" id="giQty" value="1" min="1"></td>
-                <td><input type="number" class="form-control" id="giRate" value="5000"></td>
-                <td class="fw-700" id="giAmount">₹0</td>
-              </tr>
-            </tbody>
+          <table class="table table-modern item-table mb-0">
+            <thead><tr><th>Description</th><th class="col-qty">Qty</th><th style="width:130px;">Rate</th><th style="width:130px;">Amount</th><th style="width:40px;"></th></tr></thead>
+            <tbody id="giItemsBody"></tbody>
           </table>
         </div>
         <div class="bill-totals">
@@ -178,6 +175,7 @@ let editId = null;
 let viewId = null;
 let giGstEnabled = true;
 let giContext = null;
+let giItems = [];
 
 function init(){
   loadCustomerOptions();
@@ -223,8 +221,7 @@ function init(){
   document.getElementById('giWithoutGst').addEventListener('click', () => setGiGst(false));
   document.getElementById('giTaxType').addEventListener('change', calcGiTotals);
   document.getElementById('giTaxRate').addEventListener('change', calcGiTotals);
-  document.getElementById('giQty').addEventListener('input', calcGiTotals);
-  document.getElementById('giRate').addEventListener('input', calcGiTotals);
+  document.getElementById('giAddItemBtn').addEventListener('click', () => { giItems.push({desc:'', qty:1, rate:0}); renderGiItems(); });
   document.getElementById('giPreviewBtn').addEventListener('click', openInvoicePreview);
 
   document.getElementById('viewEditBtn').addEventListener('click', () => {
@@ -486,11 +483,30 @@ function openInvoiceModal(id){
   if (!r) return;
   giContext = r;
   document.getElementById('giProjectLabel').textContent = `${r.project_name} — ${r.customer_name}`;
-  document.getElementById('giDesc').textContent = `${r.renewal_type_name || 'Renewal'} — ${r.project_name} (${r.server_name || 'hosting'})`;
-  document.getElementById('giQty').value = 1;
-  document.getElementById('giRate').value = 5000;
+  giItems = [{
+    desc: `${r.renewal_type_name || 'Renewal'} — ${r.project_name} (${r.server_name || 'hosting'})`,
+    qty: 1, rate: 5000
+  }];
+  renderGiItems();
   setGiGst(true);
   new bootstrap.Modal(document.getElementById('invoiceModal')).show();
+}
+
+function renderGiItems(){
+  document.getElementById('giItemsBody').innerHTML = giItems.map((it, i) => `
+    <tr>
+      <td><input class="form-control" placeholder="Description" value="${KTG.escAttr(it.desc)}" onchange="giItems[${i}].desc=this.value"></td>
+      <td><input type="number" class="form-control" value="${it.qty}" min="1" onchange="giItems[${i}].qty=+this.value||0; calcGiTotals();"></td>
+      <td><input type="number" class="form-control" value="${it.rate}" onchange="giItems[${i}].rate=+this.value||0; calcGiTotals();"></td>
+      <td class="fw-700 gi-amount" data-i="${i}">₹0</td>
+      <td>${giItems.length > 1 ? `<button class="btn btn-sm btn-light" type="button" onclick="removeGiItem(${i})"><i class="bi bi-trash text-danger"></i></button>` : ''}</td>
+    </tr>`).join('');
+  calcGiTotals();
+}
+
+function removeGiItem(i){
+  giItems.splice(i, 1);
+  renderGiItems();
 }
 
 function setGiGst(state){
@@ -502,17 +518,20 @@ function setGiGst(state){
 }
 
 function calcGiTotals(){
-  const qty = +document.getElementById('giQty').value || 0;
-  const rate = +document.getElementById('giRate').value || 0;
-  const amount = qty * rate;
-  document.getElementById('giAmount').textContent = KTG.money(amount);
+  let subtotal = 0;
+  giItems.forEach((it, i) => {
+    const amount = (+it.qty || 0) * (+it.rate || 0);
+    subtotal += amount;
+    const cell = document.querySelector(`.gi-amount[data-i="${i}"]`);
+    if (cell) cell.textContent = KTG.money(Math.round(amount));
+  });
 
   const percent = giGstEnabled ? (+document.getElementById('giTaxRate').value || 0) : 0;
   const taxType = giGstEnabled ? document.getElementById('giTaxType').value : 'none';
-  const taxAmount = amount * percent / 100;
+  const taxAmount = subtotal * percent / 100;
   const half = percent / 2;
 
-  document.getElementById('giSubtotal').textContent = KTG.money(amount);
+  document.getElementById('giSubtotal').textContent = KTG.money(Math.round(subtotal));
   document.getElementById('giSgstLabel').textContent = `SGST ${half}%`;
   document.getElementById('giCgstLabel').textContent = `CGST ${half}%`;
   document.getElementById('giIgstLabel').textContent = `IGST ${percent}%`;
@@ -522,18 +541,17 @@ function calcGiTotals(){
   document.getElementById('giSgstRow').classList.toggle('bt-hidden', taxType !== 'sgst_cgst');
   document.getElementById('giCgstRow').classList.toggle('bt-hidden', taxType !== 'sgst_cgst');
   document.getElementById('giIgstRow').classList.toggle('bt-hidden', taxType !== 'igst');
-  document.getElementById('giTotal').textContent = KTG.money(Math.round(amount + taxAmount));
+  document.getElementById('giTotal').textContent = KTG.money(Math.round(subtotal + taxAmount));
 }
 
 function openInvoicePreview(){
   const r = giContext;
-  const qty = +document.getElementById('giQty').value || 0;
-  const rate = +document.getElementById('giRate').value || 0;
-  const subtotal = qty * rate;
+  const realItems = giItems.filter(it => it.desc && it.desc.trim());
+  const subtotal = realItems.reduce((s, it) => s + (+it.qty || 0) * (+it.rate || 0), 0);
   const percent = giGstEnabled ? (+document.getElementById('giTaxRate').value || 0) : 0;
   const taxType = giGstEnabled ? document.getElementById('giTaxType').value : 'none';
   const taxAmount = Math.round(subtotal * percent / 100);
-  const grandTotal = subtotal + taxAmount;
+  const grandTotal = Math.round(subtotal) + taxAmount;
 
   const previewWin = window.open('', '_blank');
   $.get('ajax/customers.php', { action: 'view', id: r.customer_id }).always((res) => {
@@ -544,8 +562,8 @@ function openInvoicePreview(){
       invDate: new Date().toISOString().slice(0,10),
       dueDate: r.expiry_date,
       customer: c ? {name:c.name, gst:c.gst_number||'—', address:c.address||'—', mobile:c.mobile} : {name:r.customer_name, gst:'—', address:'—', mobile:'—'},
-      items: [{service: document.getElementById('giDesc').textContent, desc: r.live_link || '', qty, rate}],
-      subtotal, taxType, percent, halfPercent: percent/2, taxAmount,
+      items: realItems.map(it => ({service: it.desc, desc: '', qty: +it.qty || 0, rate: +it.rate || 0})),
+      subtotal: Math.round(subtotal), taxType, percent, halfPercent: percent/2, taxAmount,
       grandTotal, advancePaid: 0, balanceDue: grandTotal,
       terms: `Renewal invoice for ${(r.renewal_type_name||'').toLowerCase()} hosting/domain renewal — ${r.project_name}. Please settle before the service expiry date to avoid downtime.`,
       bank: {name:'Knock The Globe Technologies', account:'0012299171', bank:'Kotak Bank', ifsc:'KKBK0008775'}
