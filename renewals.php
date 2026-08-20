@@ -7,6 +7,28 @@ $extraHead = <<<'HTML'
 .link-cell{ max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:middle; }
 .gst-toggle-btn{ flex:1; border:2px solid var(--border); border-radius:12px; padding:.6rem; text-align:center; cursor:pointer; transition: all .18s var(--ease); background:#fff; }
 .gst-toggle-btn.active{ border-color: var(--primary); background: var(--primary-light); }
+
+/* Generate Invoice modal — mirrors invoice-create.php's bill-sheet design */
+.bill-accordion-head{ display:flex; align-items:center; justify-content:space-between; gap:1rem; padding-bottom:1rem; margin-bottom:1rem; border-bottom:2px solid var(--secondary); cursor:pointer; }
+.bill-accordion-head .bah-title{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+.bill-accordion-head .bill-doctype{ margin:0; text-align:left; }
+.bill-accordion-head .bah-toggle i{ transition: transform .2s var(--ease); }
+.bill-accordion-head[aria-expanded="true"] .bah-toggle i{ transform: rotate(180deg); }
+#giLetterheadBody .bill-letterhead{ border-bottom:none; padding-bottom:0; margin-bottom:1rem; }
+.item-table input, .item-table select{ font-size:12.8px; padding:.4rem .6rem; }
+.item-table th{ font-size:10.8px; }
+.ie2-item{ border:1px solid var(--border-soft); border-radius:var(--radius-lg); padding:1.1rem 1.2rem; margin-bottom:1rem; background:var(--surface-alt); position:relative; }
+.ie2-item .ie2-remove{ position:absolute; top:.7rem; right:.7rem; }
+.ie2-field{ margin-bottom:.75rem; }
+.ie2-field label{ font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; margin-bottom:.3rem; display:block; }
+.ie2-2col{ display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+.ie2-amount-bar{ display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px dashed var(--border); border-radius:10px; padding:.6rem .9rem; margin-top:.5rem; }
+.ie2-amount-bar .val{ font-weight:800; font-size:15px; color:var(--primary); }
+.gi-itc-mobile{ display:none; }
+@media (max-width: 767.98px){
+  .gi-itc-desktop{ display:none !important; }
+  .gi-itc-mobile{ display:block; }
+}
 </style>
 HTML;
 include __DIR__ . '/components/header.php';
@@ -122,40 +144,108 @@ $pageModals = <<<'HTML'
   </div>
 </div>
 
-<!-- Generate Invoice Modal -->
+<!-- Generate Invoice Modal — mirrors invoice-create.php's full bill-sheet layout -->
 <div class="modal fade" id="invoiceModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header"><h5 class="modal-title"><i class="bi bi-receipt text-primary-KTG me-2"></i>Generate Renewal Invoice</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body">
-        <div class="bill-block-label mb-2" id="giProjectLabel">Project</div>
-        <div class="d-flex gap-3 mb-3">
-          <div class="gst-toggle-btn active" id="giWithGst"><i class="bi bi-receipt-cutoff d-block mb-1 text-primary-KTG"></i><div class="fw-700 fs-13">With GST</div></div>
-          <div class="gst-toggle-btn" id="giWithoutGst"><i class="bi bi-receipt d-block mb-1 text-secondary"></i><div class="fw-700 fs-13">Without GST</div></div>
-        </div>
-        <div class="row g-3 mb-3" id="giTaxOptions">
-          <div class="col-md-6"><label class="form-label">GST Type</label>
-            <select class="form-select" id="giTaxType"><option value="sgst_cgst">SGST + CGST</option><option value="igst">IGST Only</option></select>
+      <div class="modal-body" style="background:var(--surface-alt);">
+
+        <!-- Tax mode -->
+        <div class="section-card mb-3">
+          <div class="section-body py-3">
+            <div class="row g-3 align-items-end">
+              <div class="col-md-7">
+                <div class="bill-block-label mb-2">Tax Mode</div>
+                <div class="d-flex gap-3">
+                  <div class="gst-toggle-btn active" id="giWithGst"><i class="bi bi-receipt-cutoff d-block mb-1 text-primary-KTG"></i><div class="fw-700 fs-14">With GST</div><div class="fs-11 text-muted">Tax Invoice</div></div>
+                  <div class="gst-toggle-btn" id="giWithoutGst"><i class="bi bi-receipt d-block mb-1 text-secondary"></i><div class="fw-700 fs-14">Without GST</div><div class="fs-11 text-muted">Bill of Supply</div></div>
+                </div>
+              </div>
+              <div class="col-md-5" id="giTaxOptions">
+                <label class="form-label">GST Type</label>
+                <select class="form-select mb-2" id="giTaxType"><option value="sgst_cgst">SGST + CGST (Intra-state)</option><option value="igst">IGST Only (Inter-state)</option></select>
+                <label class="form-label">GST Rate</label>
+                <select class="form-select" id="giTaxRate"></select>
+              </div>
+            </div>
           </div>
-          <div class="col-md-6"><label class="form-label">GST Rate</label><select class="form-select" id="giTaxRate"></select></div>
         </div>
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <div class="bill-block-label mb-0">Items &amp; Services</div>
-          <button class="btn btn-sm btn-soft-primary" type="button" id="giAddItemBtn"><i class="bi bi-plus-lg me-1"></i>Add Item</button>
+
+        <!-- Bill sheet -->
+        <div class="bill-sheet mb-3">
+          <div class="bill-accordion-head" data-bs-toggle="collapse" data-bs-target="#giLetterheadBody" role="button" aria-expanded="false" aria-controls="giLetterheadBody">
+            <div class="bah-title">
+              <div class="bill-doctype" id="giDocTypeLabel">TAX INVOICE</div>
+              <span class="fs-12 text-muted" id="giLetterheadSummary">Knock The Globe Technologies</span>
+            </div>
+            <button class="btn btn-sm btn-light bah-toggle" type="button" tabindex="-1"><i class="bi bi-chevron-down me-1"></i>Company Details</button>
+          </div>
+          <div class="collapse" id="giLetterheadBody">
+            <div class="bill-letterhead">
+              <div class="text-center">
+                <div class="bl-logo mx-auto"><img src="assets/images/logo.png" alt="KTG"></div>
+                <div class="bl-tagline">Give Us Your Hands …!</div>
+              </div>
+              <div class="bl-right" id="giLetterheadCompanyBlock"></div>
+            </div>
+          </div>
+
+          <div class="row g-4 mb-4">
+            <div class="col-md-6">
+              <div class="bill-block-label">Bill To</div>
+              <div id="giCustomerBlock" class="bill-to-meta">Loading customer…</div>
+            </div>
+            <div class="col-md-6">
+              <table class="bill-meta-table w-100">
+                <tr><td>Invoice Number</td><td><span id="giInvNumberDisplay">—</span></td></tr>
+                <tr><td>Invoice Date</td><td><input type="date" class="form-control form-control-sm d-inline-block w-auto" id="giInvDate"></td></tr>
+                <tr><td>Due Date</td><td><input type="date" class="form-control form-control-sm d-inline-block w-auto" id="giDueDate"></td></tr>
+              </table>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="bill-block-label mb-0">Items &amp; Services</div>
+            <button class="btn btn-sm btn-soft-primary" type="button" id="giAddItemBtn"><i class="bi bi-plus-lg me-1"></i>Add Item</button>
+          </div>
+
+          <div class="table-responsive mb-4 gi-itc-desktop">
+            <table class="table table-modern item-table mb-0">
+              <thead><tr><th style="min-width:240px;">Product</th><th class="col-qty">Qty</th><th style="width:120px;">Price</th><th style="width:130px;">Amount</th><th style="width:40px;"></th></tr></thead>
+              <tbody id="giItemsBodyDesktop"></tbody>
+            </table>
+          </div>
+          <div class="gi-itc-mobile mb-4" id="giItemsBodyMobile"></div>
+
+          <div class="row g-3 mb-2">
+            <div class="col-md-7">
+              <div class="bill-block-label mb-1">Notes / Terms</div>
+              <textarea class="form-control mb-3" rows="3" id="giTermsText">Renewal invoice — please settle before the service expiry date to avoid downtime.</textarea>
+            </div>
+            <div class="col-md-5">
+              <div class="bill-totals">
+                <div class="bt-row"><span class="text-muted">Subtotal</span><span class="fw-600" id="giSubtotal">₹0</span></div>
+                <div class="bt-row"><span class="text-muted">Discount (₹)</span>
+                  <span class="fw-600"><input type="number" class="form-control form-control-sm text-end" style="width:120px; display:inline-block;" id="giDiscountAmount" placeholder="0" min="0"></span>
+                </div>
+                <div class="bt-row" id="giSgstRow"><span class="text-muted" id="giSgstLabel">SGST 9%</span><span class="fw-600" id="giSgstAmt">₹0</span></div>
+                <div class="bt-row" id="giCgstRow"><span class="text-muted" id="giCgstLabel">CGST 9%</span><span class="fw-600" id="giCgstAmt">₹0</span></div>
+                <div class="bt-row" id="giIgstRow"><span class="text-muted" id="giIgstLabel">IGST 18%</span><span class="fw-600" id="giIgstAmt">₹0</span></div>
+                <div class="bt-row" id="giRoundoffRow"><span class="text-muted">Round Off</span><span class="fw-600" id="giRoundoff">₹0</span></div>
+                <div class="bt-row bt-grand"><span>Total</span>
+                  <span class="fw-800"><input type="number" class="form-control form-control-sm text-end fw-800" style="width:130px; display:inline-block; font-size:1.05rem;" id="giGrandTotalInput" value="0"></span>
+                </div>
+                <div class="bt-row"><span class="text-muted">Advance Paid</span>
+                  <span class="fw-600 text-success"><input type="number" class="form-control form-control-sm text-end" style="width:120px; display:inline-block;" id="giAdvancePaid" placeholder="0"></span>
+                </div>
+                <div class="bt-row"><span class="fw-700">Amount Due</span><span class="fw-700 text-danger" id="giSumBalance">₹0</span></div>
+              </div>
+              <div class="fs-11 text-muted mt-1"><i class="bi bi-info-circle me-1"></i>Edit Total to auto-adjust the discount, or edit Discount to recompute the Total.</div>
+            </div>
+          </div>
         </div>
-        <div class="table-responsive mb-3">
-          <table class="table table-modern item-table mb-0">
-            <thead><tr><th>Description</th><th class="col-qty">Qty</th><th style="width:130px;">Rate</th><th style="width:130px;">Amount</th><th style="width:40px;"></th></tr></thead>
-            <tbody id="giItemsBody"></tbody>
-          </table>
-        </div>
-        <div class="bill-totals">
-          <div class="bt-row"><span class="text-muted">Subtotal</span><span class="fw-600" id="giSubtotal">₹0</span></div>
-          <div class="bt-row" id="giSgstRow"><span class="text-muted" id="giSgstLabel">SGST 9%</span><span class="fw-600" id="giSgstAmt">₹0</span></div>
-          <div class="bt-row" id="giCgstRow"><span class="text-muted" id="giCgstLabel">CGST 9%</span><span class="fw-600" id="giCgstAmt">₹0</span></div>
-          <div class="bt-row" id="giIgstRow"><span class="text-muted" id="giIgstLabel">IGST 18%</span><span class="fw-600" id="giIgstAmt">₹0</span></div>
-          <div class="bt-row bt-grand"><span>Grand Total</span><span id="giTotal">₹0</span></div>
-        </div>
+
       </div>
       <div class="modal-footer">
         <button class="btn btn-light" data-bs-dismiss="modal">Close</button>
@@ -176,6 +266,8 @@ let viewId = null;
 let giGstEnabled = true;
 let giContext = null;
 let giItems = [];
+let giServices = [];
+let giCustomer = null;
 
 function init(){
   loadCustomerOptions();
@@ -197,6 +289,10 @@ function init(){
   });
   $.get('ajax/masters.php', { master: 'taxes', action: 'list' }).done((res) => {
     document.getElementById('giTaxRate').innerHTML = (res.data || []).filter(t => +t.percent > 0).map(t => `<option value="${t.percent}">${t.name}</option>`).join('');
+    calcGiTotals();
+  });
+  $.get('ajax/masters.php', { master: 'services', action: 'list' }).done((res) => {
+    giServices = res.data || [];
   });
 
   document.getElementById('rmCustomer').addEventListener('change', onCustomerSelect);
@@ -221,7 +317,10 @@ function init(){
   document.getElementById('giWithoutGst').addEventListener('click', () => setGiGst(false));
   document.getElementById('giTaxType').addEventListener('change', calcGiTotals);
   document.getElementById('giTaxRate').addEventListener('change', calcGiTotals);
-  document.getElementById('giAddItemBtn').addEventListener('click', () => { giItems.push({desc:'', qty:1, rate:0}); renderGiItems(); });
+  document.getElementById('giAddItemBtn').addEventListener('click', () => { giItems.push(giEmptyItem()); renderGiItems(); });
+  document.getElementById('giDiscountAmount').addEventListener('input', calcGiTotals);
+  document.getElementById('giAdvancePaid').addEventListener('input', calcGiTotals);
+  document.getElementById('giGrandTotalInput').addEventListener('input', giOnGrandTotalChange);
   document.getElementById('giPreviewBtn').addEventListener('click', openInvoicePreview);
 
   document.getElementById('viewEditBtn').addEventListener('click', () => {
@@ -477,35 +576,115 @@ function openViewModal(id){
   new bootstrap.Modal(document.getElementById('viewRenewalModal')).show();
 }
 
-/* ---------------- Generate Invoice (preview only — Invoices module is a later phase) ---------------- */
+/* ---------------- Generate Invoice — mirrors invoice-create.php, wired to real backend data ---------------- */
+function giEmptyItem(){ return {service:'', desc:'', qty:'', rate:''}; }
+
 function openInvoiceModal(id){
   const r = items.find(x => x.id === id);
   if (!r) return;
   giContext = r;
-  document.getElementById('giProjectLabel').textContent = `${r.project_name} — ${r.customer_name}`;
-  giItems = [{
-    desc: `${r.renewal_type_name || 'Renewal'} — ${r.project_name} (${r.server_name || 'hosting'})`,
-    qty: 1, rate: 5000
-  }];
+  giCustomer = null;
+
+  giItems = [giEmptyItem()];
+  const preset = giServices.find(s => (r.renewal_type_name || '').toLowerCase().includes((s.name || '').toLowerCase()));
+  if (preset) {
+    giItems[0] = {service: preset.name, desc: `${r.project_name} (${r.server_name || 'hosting'})`, qty: 1, rate: +preset.rate || 0};
+    giItems.push(giEmptyItem());
+  }
   renderGiItems();
+
+  document.getElementById('giInvNumberDisplay').textContent = 'INV-RENEWAL-' + r.id;
+  document.getElementById('giInvDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('giDueDate').value = r.expiry_date || '';
+  document.getElementById('giTermsText').value = `Renewal invoice for ${(r.renewal_type_name||'').toLowerCase()} hosting/domain renewal — ${r.project_name}. Please settle before the service expiry date to avoid downtime.`;
+  document.getElementById('giDiscountAmount').value = '';
+  document.getElementById('giAdvancePaid').value = '';
+
+  document.getElementById('giCustomerBlock').textContent = 'Loading customer…';
+  $.get('ajax/customers.php', { action: 'view', id: r.customer_id }).done((res) => {
+    giCustomer = res.data || null;
+    giRenderCustomer();
+  }).fail(() => {
+    giCustomer = null;
+    giRenderCustomer();
+  });
+
   setGiGst(true);
   new bootstrap.Modal(document.getElementById('invoiceModal')).show();
 }
 
+function giRenderCustomer(){
+  const meta = document.getElementById('giCustomerBlock');
+  const r = giContext;
+  const c = giCustomer;
+  if (!c) { meta.innerHTML = `<span class="bill-to-name">${r ? KTG.escAttr(r.customer_name) : '—'}</span>`; return; }
+  const gstLine = giGstEnabled ? `GST : ${c.gst_number || '—'}<br>` : '';
+  meta.innerHTML = `<span class="bill-to-name">${KTG.escAttr(c.name)}</span><br>${gstLine}${KTG.escAttr(c.address || '—')}<br>${KTG.escAttr(c.mobile || '—')}`;
+}
+
+function giRefreshLetterhead(){
+  const docType = giGstEnabled ? 'TAX INVOICE' : 'BILL OF SUPPLY';
+  const gstType = giGstEnabled ? 'gst' : 'nongst';
+  document.getElementById('giDocTypeLabel').textContent = docType;
+  document.getElementById('giLetterheadCompanyBlock').innerHTML = KTG.companyLetterheadHtml(gstType, docType);
+  const c = KTG.CompanyProfile.get(gstType);
+  document.getElementById('giLetterheadSummary').textContent = c.name || '';
+}
+
 function renderGiItems(){
-  document.getElementById('giItemsBody').innerHTML = giItems.map((it, i) => `
+  const serviceOptions = (it) => `<option value="" ${it.service ? '' : 'selected'} disabled>Select Product</option>` +
+    giServices.map(s => `<option value="${s.name}" ${s.name === it.service ? 'selected' : ''}>${s.name}</option>`).join('');
+
+  document.getElementById('giItemsBodyDesktop').innerHTML = giItems.map((it, i) => `
     <tr>
-      <td><input class="form-control" placeholder="Description" value="${KTG.escAttr(it.desc)}" onchange="giItems[${i}].desc=this.value"></td>
-      <td><input type="number" class="form-control" value="${it.qty}" min="1" onchange="giItems[${i}].qty=+this.value||0; calcGiTotals();"></td>
-      <td><input type="number" class="form-control" value="${it.rate}" onchange="giItems[${i}].rate=+this.value||0; calcGiTotals();"></td>
-      <td class="fw-700 gi-amount" data-i="${i}">₹0</td>
-      <td>${giItems.length > 1 ? `<button class="btn btn-sm btn-light" type="button" onclick="removeGiItem(${i})"><i class="bi bi-trash text-danger"></i></button>` : ''}</td>
+      <td>
+        <select class="form-select mb-1 no-search" onchange="giOnServiceChange(${i}, this.value)">
+          ${serviceOptions(it)}
+        </select>
+        <input class="form-control form-control-sm" placeholder="Description / link (optional)" value="${KTG.escAttr(it.desc)}" onchange="giItems[${i}].desc=this.value">
+      </td>
+      <td><input type="number" class="form-control" placeholder="0" value="${it.qty}" onchange="giItems[${i}].qty=+this.value; calcGiTotals();"></td>
+      <td><input type="number" class="form-control" placeholder="0" value="${it.rate}" onchange="giItems[${i}].rate=+this.value; calcGiTotals();"></td>
+      <td class="fw-600 gi-item-amount" data-i="${i}">₹0</td>
+      <td><button class="btn btn-sm btn-light" type="button" onclick="removeGiItem(${i})"><i class="bi bi-trash text-danger"></i></button></td>
     </tr>`).join('');
+
+  document.getElementById('giItemsBodyMobile').innerHTML = giItems.map((it, i) => `
+    <div class="ie2-item">
+      <button class="btn btn-sm btn-light ie2-remove" type="button" onclick="removeGiItem(${i})"><i class="bi bi-trash text-danger"></i></button>
+      <div class="ie2-field">
+        <label>Product</label>
+        <select class="form-select no-search" onchange="giOnServiceChange(${i}, this.value)">
+          ${serviceOptions(it)}
+        </select>
+      </div>
+      <div class="ie2-field">
+        <label>Description</label>
+        <textarea class="form-control" rows="2" onchange="giItems[${i}].desc=this.value">${KTG.escAttr(it.desc)}</textarea>
+      </div>
+      <div class="ie2-2col">
+        <div class="ie2-field mb-0"><label>Qty</label><input type="number" class="form-control" placeholder="0" value="${it.qty}" onchange="giItems[${i}].qty=+this.value; calcGiTotals();"></div>
+        <div class="ie2-field mb-0"><label>Rate (₹)</label><input type="number" class="form-control" placeholder="0" value="${it.rate}" onchange="giItems[${i}].rate=+this.value; calcGiTotals();"></div>
+      </div>
+      <div class="ie2-amount-bar"><span class="text-muted fs-13">Line Amount</span><span class="val gi-item-amount" data-i="${i}">₹0</span></div>
+    </div>`).join('');
+
   calcGiTotals();
 }
 
 function removeGiItem(i){
   giItems.splice(i, 1);
+  if (!giItems.length) giItems.push(giEmptyItem());
+  renderGiItems();
+}
+
+function giOnServiceChange(i, name){
+  const svc = giServices.find(s => s.name === name);
+  if (!svc) return;
+  giItems[i].service = svc.name;
+  giItems[i].rate = +svc.rate || 0;
+  if (!giItems[i].qty) giItems[i].qty = 1;
+  if (i === giItems.length - 1) giItems.push(giEmptyItem());
   renderGiItems();
 }
 
@@ -513,23 +692,42 @@ function setGiGst(state){
   giGstEnabled = state;
   document.getElementById('giWithGst').classList.toggle('active', state);
   document.getElementById('giWithoutGst').classList.toggle('active', !state);
-  document.getElementById('giTaxOptions').style.display = state ? 'flex' : 'none';
+  document.getElementById('giTaxOptions').style.display = state ? 'block' : 'none';
+  giRefreshLetterhead();
+  giRenderCustomer();
   calcGiTotals();
 }
 
+function giItemsSubtotal(list){
+  return list.reduce((s, it) => s + (+it.qty || 0) * (+it.rate || 0), 0);
+}
+
+function giCurrentTax(taxable){
+  const percent = giGstEnabled ? (+document.getElementById('giTaxRate').value || 0) : 0;
+  const taxType = giGstEnabled ? document.getElementById('giTaxType').value : 'none';
+  const taxAmount = taxable * percent / 100;
+  return { percent, taxType, taxAmount };
+}
+
+/* Subtotal → Discount → taxable amount → tax → raw total → rounded Total (Round Off = the gap).
+   The Total field is editable: typing a target total back-solves the Discount needed to reach it. */
 function calcGiTotals(){
   let subtotal = 0;
   giItems.forEach((it, i) => {
     const amount = (+it.qty || 0) * (+it.rate || 0);
     subtotal += amount;
-    const cell = document.querySelector(`.gi-amount[data-i="${i}"]`);
-    if (cell) cell.textContent = KTG.money(Math.round(amount));
+    document.querySelectorAll(`.gi-item-amount[data-i="${i}"]`).forEach(cell => cell.textContent = KTG.money(Math.round(amount)));
   });
 
-  const percent = giGstEnabled ? (+document.getElementById('giTaxRate').value || 0) : 0;
-  const taxType = giGstEnabled ? document.getElementById('giTaxType').value : 'none';
-  const taxAmount = subtotal * percent / 100;
+  const discount = Math.min(Math.max(+document.getElementById('giDiscountAmount').value || 0, 0), subtotal);
+  const taxable = subtotal - discount;
+  const { percent, taxType, taxAmount } = giCurrentTax(taxable);
   const half = percent / 2;
+  const rawTotal = taxable + taxAmount;
+  const roundedTotal = Math.round(rawTotal);
+  const roundOff = roundedTotal - rawTotal;
+  const advance = +document.getElementById('giAdvancePaid').value || 0;
+  const due = Math.max(roundedTotal - advance, 0);
 
   document.getElementById('giSubtotal').textContent = KTG.money(Math.round(subtotal));
   document.getElementById('giSgstLabel').textContent = `SGST ${half}%`;
@@ -541,36 +739,52 @@ function calcGiTotals(){
   document.getElementById('giSgstRow').classList.toggle('bt-hidden', taxType !== 'sgst_cgst');
   document.getElementById('giCgstRow').classList.toggle('bt-hidden', taxType !== 'sgst_cgst');
   document.getElementById('giIgstRow').classList.toggle('bt-hidden', taxType !== 'igst');
-  document.getElementById('giTotal').textContent = KTG.money(Math.round(subtotal + taxAmount));
+  document.getElementById('giRoundoffRow').classList.toggle('bt-hidden', Math.abs(roundOff) <= 0.001);
+  document.getElementById('giRoundoff').textContent = (roundOff >= 0 ? '+' : '−') + KTG.money(Math.abs(roundOff));
+  document.getElementById('giGrandTotalInput').value = roundedTotal;
+  document.getElementById('giSumBalance').textContent = KTG.money(due);
+}
+
+function giOnGrandTotalChange(){
+  const target = +document.getElementById('giGrandTotalInput').value || 0;
+  const subtotal = giItemsSubtotal(giItems);
+  const percent = giGstEnabled ? (+document.getElementById('giTaxRate').value || 0) : 0;
+  const taxable = percent > 0 ? target / (1 + percent / 100) : target;
+  const discount = Math.min(Math.max(subtotal - taxable, 0), subtotal);
+  document.getElementById('giDiscountAmount').value = Math.round(discount);
+  calcGiTotals();
 }
 
 function openInvoicePreview(){
   const r = giContext;
-  const realItems = giItems.filter(it => it.desc && it.desc.trim());
-  const subtotal = realItems.reduce((s, it) => s + (+it.qty || 0) * (+it.rate || 0), 0);
-  const percent = giGstEnabled ? (+document.getElementById('giTaxRate').value || 0) : 0;
-  const taxType = giGstEnabled ? document.getElementById('giTaxType').value : 'none';
-  const taxAmount = Math.round(subtotal * percent / 100);
-  const grandTotal = Math.round(subtotal) + taxAmount;
+  const c = giCustomer;
+  const realItems = giItems.filter(it => it.service);
+  const subtotal = giItemsSubtotal(realItems);
+  const discount = Math.min(Math.max(+document.getElementById('giDiscountAmount').value || 0, 0), subtotal);
+  const taxable = subtotal - discount;
+  const { percent, taxType, taxAmount } = giCurrentTax(taxable);
+  const rawTotal = taxable + taxAmount;
+  const grandTotal = Math.round(rawTotal);
+  const roundOff = grandTotal - rawTotal;
+  const advance = +document.getElementById('giAdvancePaid').value || 0;
+  const balanceDue = Math.max(grandTotal - advance, 0);
 
-  const previewWin = window.open('', '_blank');
-  $.get('ajax/customers.php', { action: 'view', id: r.customer_id }).always((res) => {
-    const c = res && res.data;
-    const data = {
-      docType: giGstEnabled ? 'TAX INVOICE' : 'BILL OF SUPPLY',
-      invNumber: 'INV-RENEWAL-' + r.id,
-      invDate: new Date().toISOString().slice(0,10),
-      dueDate: r.expiry_date,
-      customer: c ? {name:c.name, gst:c.gst_number||'—', address:c.address||'—', mobile:c.mobile} : {name:r.customer_name, gst:'—', address:'—', mobile:'—'},
-      items: realItems.map(it => ({service: it.desc, desc: '', qty: +it.qty || 0, rate: +it.rate || 0})),
-      subtotal: Math.round(subtotal), taxType, percent, halfPercent: percent/2, taxAmount,
-      grandTotal, advancePaid: 0, balanceDue: grandTotal,
-      terms: `Renewal invoice for ${(r.renewal_type_name||'').toLowerCase()} hosting/domain renewal — ${r.project_name}. Please settle before the service expiry date to avoid downtime.`,
-      bank: {name:'Knock The Globe Technologies', account:'0012299171', bank:'Kotak Bank', ifsc:'KKBK0008775'}
-    };
-    sessionStorage.setItem('ktg_invoice_preview', JSON.stringify(data));
-    if (previewWin) previewWin.location = 'invoice-preview.php';
-  });
+  const data = {
+    docType: document.getElementById('giDocTypeLabel').textContent,
+    gstType: giGstEnabled ? 'gst' : 'nongst',
+    invNumber: document.getElementById('giInvNumberDisplay').textContent,
+    invDate: document.getElementById('giInvDate').value,
+    dueDate: document.getElementById('giDueDate').value,
+    customer: c ? {name:c.name, gst: giGstEnabled ? (c.gst_number||'') : '', address:c.address||'—', mobile:c.mobile||'—'} : {name: r ? r.customer_name : '—', gst:'', address:'—', mobile:'—'},
+    items: realItems,
+    subtotal: Math.round(subtotal), discount: Math.round(discount),
+    taxType, percent, halfPercent: percent/2, taxAmount: Math.round(taxAmount), roundOff,
+    grandTotal, advancePaid: advance, balanceDue,
+    terms: document.getElementById('giTermsText').value,
+    bank: {name:'Knock The Globe Technologies', account:'0012299171', bank:'Kotak Bank', ifsc:'KKBK0008775'}
+  };
+  sessionStorage.setItem('ktg_invoice_preview', JSON.stringify(data));
+  window.open('invoice-preview.php', '_blank');
 }
 JS;
 ?>
