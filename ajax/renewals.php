@@ -13,7 +13,7 @@ $userId = current_user()['id'] ?? null;
 
 const RENEWAL_SELECT = "SELECT r.*, c.name AS customer_name, pt.name AS project_type_name,
     sv.name AS server_name, rt.name AS renewal_type_name, ps.name AS paid_status_name,
-    ri.id AS invoice_id, ri.invoice_number AS invoice_number
+    ri.id AS invoice_id, ri.invoice_number AS invoice_number, ri.grand_total AS invoice_grand_total
     FROM renewals r
     JOIN customers c ON c.id = r.customer_id
     LEFT JOIN master_project_types pt ON pt.id = r.project_type_id

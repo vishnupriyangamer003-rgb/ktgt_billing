@@ -63,7 +63,6 @@ include __DIR__ . '/components/header.php';
               <button type="button" class="quick-filter-chip" data-range="all"><i class="bi bi-collection"></i>Show All</button>
               <button type="button" class="quick-filter-chip" data-range="last_month"><i class="bi bi-calendar-minus"></i>Last Month</button>
               <button type="button" class="quick-filter-chip active" data-range="this_month"><i class="bi bi-calendar-check"></i>This Month</button>
-              <button type="button" class="quick-filter-chip" data-range="this_week"><i class="bi bi-calendar-week"></i>This Week</button>
               <button type="button" class="quick-filter-chip" data-range="next_month"><i class="bi bi-calendar-plus"></i>Next Month</button>
               <button type="button" class="quick-filter-chip" data-range="custom"><i class="bi bi-sliders"></i>Custom Range</button>
               <input type="date" class="form-control d-none" id="fromDate" style="max-width:160px;" title="From date">
@@ -83,7 +82,7 @@ include __DIR__ . '/components/header.php';
         <div class="table-responsive">
           <table class="table table-modern mb-0">
             <thead>
-              <tr><th style="width:46px;">S.No</th><th>Project / Customer</th><th>Type</th><th>Server</th><th>Live Link</th><th>Expiry</th><th>Paid Status</th><th></th></tr>
+              <tr><th style="width:46px;">S.No</th><th>Date</th><th>Project / Customer</th><th>Type</th><th>Total</th><th>Expiry</th><th>Paid Status</th><th></th></tr>
             </thead>
             <tbody id="resultsBody"></tbody>
           </table>
@@ -407,13 +406,13 @@ function renderList(){
   document.getElementById('resultsBody').innerHTML = items.map((r, i) => `
     <tr>
       <td class="fs-13 text-muted">${i+1}</td>
+      <td class="fs-13">${(r.created_at || '').slice(0,10) || '—'}</td>
       <td>
         <div class="cell-title">${r.project_name}</div>
         <div class="cell-sub">${r.customer_name}</div>
       </td>
       <td>${r.project_type_name ? `<span class="chip chip-inprogress">${r.project_type_name}</span>` : '<span class="text-muted">—</span>'}</td>
-      <td class="fs-13">${r.server_name || '—'}</td>
-      <td><a href="#" class="link-cell fs-13" title="${(r.live_link||'').replace(/"/g,'&quot;')}" onclick="openViewModal(${r.id}); return false;">${r.live_link || '—'}</a></td>
+      <td class="fs-13 fw-600">${r.invoice_grand_total ? KTG.money(Math.round(+r.invoice_grand_total)) : '<span class="text-muted">—</span>'}</td>
       <td><div class="fs-13 fw-600">${r.expiry_date}</div>${expiryBadge(r.expiry_date)}</td>
       <td>${r.paid_status_name ? `<span class="chip chip-${paidChipClass(r.paid_status_name)}">${r.paid_status_name}</span>` : '<span class="text-muted">—</span>'}</td>
       <td>
