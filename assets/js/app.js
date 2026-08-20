@@ -1022,6 +1022,20 @@ const KTG = (() => {
     });
   }
 
+  /* Bootstrap positions dropdown-menus with Popper's default "absolute" strategy, which gets
+     clipped by a .table-responsive ancestor (overflow-x:auto implicitly forces overflow-y:auto
+     too, per the CSS overflow spec, cutting off menus that would otherwise overflow the row).
+     Re-initializing each toggle with strategy:'fixed' positions relative to the viewport instead,
+     escaping that clipping. Safe to call repeatedly after every re-render — old instances (tied
+     to DOM nodes that innerHTML already destroyed) are simply replaced. */
+  function fixDropdownOverflow(container) {
+    (container || document).querySelectorAll('[data-bs-toggle="dropdown"]').forEach((el) => {
+      const existing = bootstrap.Dropdown.getInstance(el);
+      if (existing) existing.dispose();
+      new bootstrap.Dropdown(el, { popperConfig: (defaultConfig) => ({ ...defaultConfig, strategy: 'fixed' }) });
+    });
+  }
+
   /* GST invoices use the INV- prefix, Non-GST (Bill of Supply) invoices use BOS- —
      each series numbers independently so switching tax mode doesn't skip numbers. */
   function nextInvoiceNumber(gstType){
@@ -1095,7 +1109,7 @@ const KTG = (() => {
     return html;
   }
 
-  return { DATA, qs, Auth, Masters, CompanyProfile, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, escAttr, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable, nextInvoiceNumber, dueDays, relativeDaysLabel, dateRangeFor, companyLetterheadHtml };
+  return { DATA, qs, Auth, Masters, CompanyProfile, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, escAttr, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable, fixDropdownOverflow, nextInvoiceNumber, dueDays, relativeDaysLabel, dateRangeFor, companyLetterheadHtml };
 })();
 
 document.addEventListener('DOMContentLoaded', () => { KTG.loadLayout(); });

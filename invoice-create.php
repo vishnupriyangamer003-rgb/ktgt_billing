@@ -47,7 +47,8 @@ include __DIR__ . '/components/header.php';
           <button class="btn btn-light" id="downloadBtn"><i class="bi bi-download me-1"></i>Download PDF</button>
           <button class="btn btn-outline-primary" id="sendBtn"><i class="bi bi-send me-1"></i>Send</button>
           <button class="btn btn-outline-primary" id="shareBtn"><i class="bi bi-share me-1"></i>Share</button>
-          <a class="btn btn-primary" id="paymentEntryLink" href="payments.php"><i class="bi bi-cash-coin me-1"></i>Payment Entry</a>
+          <a class="btn btn-light" id="paymentEntryLink" href="payments.php"><i class="bi bi-cash-coin me-1"></i>Payment Entry</a>
+          <button class="btn btn-primary" id="saveInvoiceBtn"><i class="bi bi-save me-1"></i>Save Invoice</button>
         </div>
       </div>
 
@@ -154,24 +155,8 @@ include __DIR__ . '/components/header.php';
       </div>
 
       <div class="row g-3">
-        <div class="col-md-6">
-          <div class="section-card fade-in-up h-100">
-            <div class="section-head"><h5>Status &amp; Save</h5></div>
-            <div class="section-body">
-              <select class="form-select mb-3" id="statusSelect">
-                <option value="draft">Draft</option>
-                <option value="pending" selected>Pending</option>
-                <option value="partial">Partially Paid</option>
-                <option value="paid">Paid</option>
-                <option value="overdue">Overdue</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-              <button class="btn btn-primary w-100" id="saveInvoiceBtn"><i class="bi bi-save me-1"></i>Save Invoice</button>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="section-card fade-in-up h-100">
+        <div class="col-12">
+          <div class="section-card fade-in-up">
             <div class="section-head"><h5>Payment History</h5></div>
             <div class="section-body">
               <div class="empty-state py-4"><div class="es-icon"><i class="bi bi-cash-coin"></i></div><h6>Not available yet</h6><p>This will be available once the Payments module is connected to Invoices.</p></div>
@@ -188,6 +173,7 @@ let items = [];
 let customers = [];
 let services = [];
 let editingId = null;
+let currentStatus = 'pending';
 
 function emptyItem(){ return {service:'', desc:'', qty:'', rate:''}; }
 
@@ -272,7 +258,7 @@ function applyInvoiceData(inv){
   document.getElementById('advancePaid').value = +inv.advance_paid || '';
   document.getElementById('taxTypeSelect').value = inv.tax_type === 'igst' ? 'igst' : 'sgst_cgst';
   if (+inv.tax_percent) document.getElementById('taxSelect').value = inv.tax_percent;
-  document.getElementById('statusSelect').value = inv.status;
+  currentStatus = inv.status;
   document.getElementById('invNumberDisplay').textContent = inv.invoice_number;
 
   renderItems();
@@ -495,19 +481,18 @@ function saveInvoice(){
     subtotal: Math.round(subtotal), discount: Math.round(discount),
     tax_type: taxType, tax_percent: percent, tax_amount: Math.round(taxAmount),
     round_off: roundOff, grand_total: grandTotal, advance_paid: advance, balance_due: balanceDue,
-    status: document.getElementById('statusSelect').value,
+    status: currentStatus,
     terms: document.getElementById('termsText').value
   };
 
   const $btn = $('#saveInvoiceBtn').prop('disabled', true);
   $.post('ajax/invoices.php', payload).done((res) => {
     if (!res.success) { KTG.toast(res.message || 'Could not save the invoice.', 'danger', 'Error'); $btn.prop('disabled', false); return; }
-    KTG.toast(res.message || 'Invoice saved.', 'success', 'Saved');
-    if (!editingId) {
-      window.location.href = 'invoice-create.php?id=' + res.data.id;
-    } else {
-      $btn.prop('disabled', false);
-    }
+    sessionStorage.setItem('ktg_invoice_flash', JSON.stringify({
+      message: editingId ? 'Invoice has been updated.' : 'Invoice has been saved.',
+      title: 'Success'
+    }));
+    window.location.href = 'invoice-list.php';
   }).fail((xhr) => {
     const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Could not save the invoice.';
     KTG.toast(msg, 'danger', 'Error');

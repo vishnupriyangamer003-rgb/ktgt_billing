@@ -198,16 +198,13 @@ if ($action === 'edit') {
     json_success([], 'Invoice updated successfully.');
 }
 
-/* The list's "Cancel Invoice" action sets status=cancelled rather than soft-deleting —
- * the status tabs include a Cancelled filter, so a cancelled invoice must stay visible
- * there for the audit trail, not disappear from every view. */
-if ($action === 'cancel') {
+if ($action === 'delete') {
     verify_csrf();
     $id = (int)($_POST['id'] ?? 0);
     if ($id <= 0) json_error('Invalid invoice.');
-    $stmt = db()->prepare("UPDATE invoices SET status='cancelled', updated_by=? WHERE id=? AND is_deleted=0");
+    $stmt = db()->prepare('UPDATE invoices SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id = ? AND is_deleted = 0');
     $stmt->execute([$userId, $id]);
-    json_success([], 'Invoice cancelled.');
+    json_success([], 'Invoice deleted successfully.');
 }
 
 json_error('Unknown action.', 400);

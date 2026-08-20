@@ -87,7 +87,18 @@ const STATUS_ICON = {draft:'bi-file-earmark', paid:'bi-check-circle-fill', pendi
 const STATUS_COLOR = {draft:'secondary', paid:'success', pending:'warning', partial:'primary', overdue:'danger', cancelled:'secondary'};
 const STATUS_LABEL = {draft:'draft', paid:'paid', pending:'pending', partial:'partial', overdue:'overdue', cancelled:'cancelled'};
 
+function consumeFlash(){
+  const raw = sessionStorage.getItem('ktg_invoice_flash');
+  if (!raw) return;
+  sessionStorage.removeItem('ktg_invoice_flash');
+  try {
+    const flash = JSON.parse(raw);
+    KTG.toast(flash.message, 'success', flash.title || 'Success');
+  } catch (e) { /* ignore malformed flash data */ }
+}
+
 function init(){
+  consumeFlash();
   document.querySelectorAll('#statusTabs .nav-link').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#statusTabs .nav-link').forEach(b => b.classList.remove('active'));
@@ -149,7 +160,9 @@ function toggleView(mode){
 
 function dueDaysLabel(inv){
   if (inv.status === 'paid' || inv.status === 'cancelled' || !inv.due_date) return '<span class="text-muted">—</span>';
-  return `<span class="fw-600">${KTG.relativeDaysLabel(inv.due_date)}</span>`;
+  const days = KTG.dueDays(inv.due_date);
+  const cls = days < 0 ? 'text-danger' : days <= 3 ? 'text-warning' : 'text-info';
+  return `<span class="fw-700 ${cls}">${KTG.relativeDaysLabel(inv.due_date)}</span>`;
 }
 
 function renderStats(){
@@ -184,7 +197,8 @@ function renderList(){
   document.getElementById('invCount').textContent = items.length;
   document.getElementById('invCountGrid').textContent = items.length;
 
-  document.getElementById('gridView').innerHTML = items.map(inv => {
+  const gridView = document.getElementById('gridView');
+  gridView.innerHTML = items.map(inv => {
     const balance = +inv.balance_due;
     return `
     <div class="col-sm-6 col-xl-4">
@@ -194,7 +208,7 @@ function renderList(){
           <span class="chip chip-${inv.status}">${inv.status}</span>
         </div>
         <a href="invoice-create.php?id=${inv.id}" class="cell-title d-block fs-14 mb-1">${inv.invoice_number}</a>
-        <div class="cell-sub mb-2">${inv.customer_name}</div>
+        <div class="fs-13 fw-600 text-info mb-2">${inv.customer_name}</div>
         <div class="fs-12 text-secondary mb-1"><i class="bi bi-calendar3 me-2 text-muted"></i>${inv.invoice_date}</div>
         <div class="fs-12 mb-2">${dueDaysLabel(inv)}</div>
         <div class="d-flex justify-content-between fs-12 text-secondary mb-3">
@@ -202,50 +216,54 @@ function renderList(){
           ${balance > 0 ? `<span class="text-danger fw-600">Bal ${KTG.moneyShort(balance)}</span>` : ''}
         </div>
         <div class="d-flex justify-content-between align-items-center">
-          <span class="dg-amt">${KTG.money(+inv.grand_total)}</span>
+          <span class="dg-amt text-primary-KTG">${KTG.money(+inv.grand_total)}</span>
           <div class="dropdown">
             <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
             <div class="dropdown-menu dropdown-menu-end">
               <a class="dropdown-item" href="invoice-create.php?id=${inv.id}"><i class="bi bi-eye"></i>View</a>
               <a class="dropdown-item" href="#" onclick="printInvoice(${inv.id}); return false;"><i class="bi bi-printer"></i>Print</a>
+              <a class="dropdown-item" href="#" onclick="printInvoice(${inv.id}); return false;"><i class="bi bi-download"></i>Download PDF</a>
               <a class="dropdown-item" href="#" onclick="shareInvoice(); return false;"><i class="bi bi-share"></i>Share</a>
-              ${inv.status !== 'cancelled' ? `<div class="dropdown-divider"></div><a class="dropdown-item text-danger" href="#" onclick="cancelInvoice(${inv.id}); return false;"><i class="bi bi-x-circle"></i>Cancel Invoice</a>` : ''}
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item text-danger" href="#" onclick="deleteInvoice(${inv.id}); return false;"><i class="bi bi-trash"></i>Delete Invoice</a>
             </div>
           </div>
         </div>
       </div>
     </div>`;
   }).join('') || `<div class="col-12"><div class="section-card"><div class="empty-state"><div class="es-icon"><i class="bi bi-receipt"></i></div><h6>No invoices found</h6><p>Try a different date range or status filter.</p></div></div></div>`;
+  KTG.fixDropdownOverflow(gridView);
 
-  document.getElementById('invTableBody').innerHTML = items.map(inv => {
+  const tableBody = document.getElementById('invTableBody');
+  tableBody.innerHTML = items.map(inv => {
     const balance = +inv.balance_due;
     return `
     <tr>
       <td><a href="invoice-create.php?id=${inv.id}" class="cell-title">${inv.invoice_number}</a></td>
-      <td>${inv.customer_name}</td>
+      <td class="fw-600 text-info">${inv.customer_name}</td>
       <td class="fs-13">${inv.invoice_date}</td>
       <td class="fs-13">${dueDaysLabel(inv)}</td>
-      <td class="fw-600">${KTG.money(+inv.grand_total)}</td>
+      <td class="fw-700 text-primary-KTG">${KTG.money(+inv.grand_total)}</td>
       <td class="text-success fw-600">${KTG.money(+inv.advance_paid)}</td>
       <td class="fw-600 ${balance>0?'text-danger':''}">${KTG.money(balance)}</td>
       <td><span class="chip chip-${inv.status}">${inv.status}</span></td>
       <td>
-        <div class="d-flex gap-1">
-          <a class="btn btn-sm btn-light" title="View" href="invoice-create.php?id=${inv.id}"><i class="bi bi-eye"></i></a>
-          <div class="dropdown">
-            <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
-            <div class="dropdown-menu dropdown-menu-end">
-              <a class="dropdown-item" href="#" onclick="printInvoice(${inv.id}); return false;"><i class="bi bi-printer"></i>Print</a>
-              <a class="dropdown-item" href="#" onclick="printInvoice(${inv.id}); return false;"><i class="bi bi-download"></i>Download PDF</a>
-              <a class="dropdown-item" href="#" onclick="shareInvoice(); return false;"><i class="bi bi-share"></i>Share</a>
-              ${inv.status !== 'cancelled' ? `<div class="dropdown-divider"></div><a class="dropdown-item text-danger" href="#" onclick="cancelInvoice(${inv.id}); return false;"><i class="bi bi-x-circle"></i>Cancel Invoice</a>` : ''}
-            </div>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
+          <div class="dropdown-menu dropdown-menu-end">
+            <a class="dropdown-item" href="invoice-create.php?id=${inv.id}"><i class="bi bi-eye"></i>View</a>
+            <a class="dropdown-item" href="#" onclick="printInvoice(${inv.id}); return false;"><i class="bi bi-printer"></i>Print</a>
+            <a class="dropdown-item" href="#" onclick="printInvoice(${inv.id}); return false;"><i class="bi bi-download"></i>Download PDF</a>
+            <a class="dropdown-item" href="#" onclick="shareInvoice(); return false;"><i class="bi bi-share"></i>Share</a>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item text-danger" href="#" onclick="deleteInvoice(${inv.id}); return false;"><i class="bi bi-trash"></i>Delete Invoice</a>
           </div>
         </div>
       </td>
     </tr>`;
   }).join('') || `<tr><td colspan="9"><div class="empty-state"><div class="es-icon"><i class="bi bi-receipt"></i></div><h6>No invoices found</h6><p>Try a different date range or status filter.</p></div></td></tr>`;
-  KTG.makeResponsiveTable(document.getElementById('invTableBody').closest('table'));
+  KTG.makeResponsiveTable(tableBody.closest('table'));
+  KTG.fixDropdownOverflow(tableBody);
 }
 
 function printInvoice(id){
@@ -256,22 +274,22 @@ function shareInvoice(){
   KTG.toast('Sharing is not available yet.', 'primary', 'Coming Soon');
 }
 
-function cancelInvoice(id){
+function deleteInvoice(id){
   const inv = items.find(i => i.id === id);
   if (!inv) return;
   KTG.confirmDialog({
-    title: 'Cancel Invoice?',
-    body: `Cancel invoice ${inv.invoice_number}? It will be marked as Cancelled and kept for your records.`,
-    confirmText: 'Cancel Invoice',
+    title: 'Delete Invoice?',
+    body: `This will permanently remove invoice ${inv.invoice_number} from your invoice list.`,
+    confirmText: 'Delete Invoice',
     confirmClass: 'btn-danger',
     onConfirm: () => {
-      $.post('ajax/invoices.php', { action: 'cancel', id }).done((res) => {
-        if (!res.success) { KTG.toast(res.message || 'Could not cancel the invoice.', 'danger', 'Error'); return; }
-        KTG.toast('Invoice has been cancelled.', 'success', 'Cancelled');
+      $.post('ajax/invoices.php', { action: 'delete', id }).done((res) => {
+        if (!res.success) { KTG.toast(res.message || 'Could not delete the invoice.', 'danger', 'Error'); return; }
+        KTG.toast('Invoice has been deleted.', 'success', 'Deleted');
         render();
         renderStats();
       }).fail((xhr) => {
-        const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Could not cancel the invoice.';
+        const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Could not delete the invoice.';
         KTG.toast(msg, 'danger', 'Error');
       });
     }
