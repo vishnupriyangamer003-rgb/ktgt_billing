@@ -221,6 +221,7 @@ function renderList(){
             <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
             <div class="dropdown-menu dropdown-menu-end">
               <a class="dropdown-item" href="invoice-create.php?id=${inv.id}"><i class="bi bi-eye"></i>View</a>
+              ${balance > 0 ? `<a class="dropdown-item" href="payments.php?customer=${inv.customer_id}"><i class="bi bi-cash-coin"></i>Add Payment</a>` : ''}
               <a class="dropdown-item" href="#" onclick="printInvoice(${inv.id}); return false;"><i class="bi bi-printer"></i>Print</a>
               <a class="dropdown-item" href="#" onclick="printInvoice(${inv.id}); return false;"><i class="bi bi-download"></i>Download PDF</a>
               <a class="dropdown-item" href="#" onclick="shareInvoice(); return false;"><i class="bi bi-share"></i>Share</a>
@@ -252,6 +253,7 @@ function renderList(){
           <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
           <div class="dropdown-menu dropdown-menu-end">
             <a class="dropdown-item" href="invoice-create.php?id=${inv.id}"><i class="bi bi-eye"></i>View</a>
+            ${balance > 0 ? `<a class="dropdown-item" href="payments.php?customer=${inv.customer_id}"><i class="bi bi-cash-coin"></i>Add Payment</a>` : ''}
             <a class="dropdown-item" href="#" onclick="printInvoice(${inv.id}); return false;"><i class="bi bi-printer"></i>Print</a>
             <a class="dropdown-item" href="#" onclick="printInvoice(${inv.id}); return false;"><i class="bi bi-download"></i>Download PDF</a>
             <a class="dropdown-item" href="#" onclick="shareInvoice(); return false;"><i class="bi bi-share"></i>Share</a>

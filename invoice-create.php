@@ -269,6 +269,7 @@ function applyInvoiceData(inv){
 function onCustomerChange(){
   const id = document.getElementById('customerSelect').value;
   const c = customers.find(x => String(x.id) === String(id));
+  document.getElementById('paymentEntryLink').href = id ? 'payments.php?customer=' + id : 'payments.php';
   const meta = document.getElementById('customerMeta');
   if (!c) { meta.textContent = 'Select a customer to auto-fill billing details.'; return; }
   const gstLine = gstEnabled && c.gst_number ? `GST : ${KTG.escAttr(c.gst_number)}<br>` : '';
