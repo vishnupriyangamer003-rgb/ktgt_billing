@@ -177,6 +177,7 @@ let currentStatus = 'pending';
 
 function emptyItem(){ return {service:'', desc:'', qty:'', rate:''}; }
 
+/* One dropdown entry per company: "Vishnu — Vichu", "Vishnu — Service"… */
 function customerOptionLabel(c){
   const company = (c.company_name || '').trim();
   if (!company || company.toLowerCase() === (c.name || '').trim().toLowerCase()) return c.name;
@@ -193,7 +194,7 @@ function init(){
   ).done((custRes, taxRes, svcRes) => {
     customers = custRes[0].data || [];
     const custSelect = document.getElementById('customerSelect');
-    custSelect.innerHTML = '<option value="">Select customer...</option>' + customers.map(c => `<option value="${c.id}">${KTG.escAttr(customerOptionLabel(c))}</option>`).join('');
+    custSelect.innerHTML = '<option value="">Select customer...</option>' + customers.map(c => `<option value="${KTG.escAttr(KTG.customerEntryValue(c))}">${KTG.escAttr(customerOptionLabel(c))}</option>`).join('');
     custSelect.addEventListener('change', onCustomerChange);
 
     const taxSelect = document.getElementById('taxSelect');
@@ -250,7 +251,7 @@ function applyInvoiceData(inv){
   if (!items.length) items.push(emptyItem());
   items.push(emptyItem());
 
-  document.getElementById('customerSelect').value = inv.customer_id;
+  document.getElementById('customerSelect').value = KTG.customerEntryFor(customers, inv.customer_id, inv.company_name);
   document.getElementById('invDate').value = inv.invoice_date || '';
   document.getElementById('dueDate').value = inv.due_date || '';
   document.getElementById('termsText').value = inv.terms || '';
@@ -267,13 +268,17 @@ function applyInvoiceData(inv){
 }
 
 function onCustomerChange(){
-  const id = document.getElementById('customerSelect').value;
-  const c = customers.find(x => String(x.id) === String(id));
+  const id = KTG.parseCustomerEntry(document.getElementById('customerSelect').value).id;
+  const c = KTG.findCustomerEntry(customers, document.getElementById('customerSelect').value);
   document.getElementById('paymentEntryLink').href = id ? 'payments.php?customer=' + id : 'payments.php';
   const meta = document.getElementById('customerMeta');
   if (!c) { meta.textContent = 'Select a customer to auto-fill billing details.'; return; }
   const gstLine = gstEnabled && c.gst_number ? `GST : ${KTG.escAttr(c.gst_number)}<br>` : '';
-  meta.innerHTML = `<span class="bill-to-name">${KTG.escAttr(c.name)}</span><br>${gstLine}${KTG.escAttr(c.address || '—')}<br>${KTG.escAttr(c.mobile || '—')}`;
+  const co = (c.company_name || '').trim();
+  const nameLine = co && co.toLowerCase() !== (c.name || '').trim().toLowerCase()
+    ? `<span class="bill-to-name">${KTG.escAttr(co)}</span><br>Attn: ${KTG.escAttr(c.name)}<br>`
+    : `<span class="bill-to-name">${KTG.escAttr(c.name)}</span><br>`;
+  meta.innerHTML = `${nameLine}${gstLine}${KTG.escAttr(c.address || '—')}<br>${KTG.escAttr(c.mobile || '—')}`;
 }
 
 function refreshInvoiceNumber(){
@@ -418,8 +423,7 @@ function onGrandTotalChange(){
 }
 
 function openPreview(autoprint){
-  const id = document.getElementById('customerSelect').value;
-  const c = customers.find(x => String(x.id) === String(id));
+  const c = KTG.findCustomerEntry(customers, document.getElementById('customerSelect').value);
   const realItems = items.filter(it => it.service);
   const subtotal = itemsSubtotal(realItems);
   const discount = Math.min(Math.max(+document.getElementById('discountAmount').value || 0, 0), subtotal);
@@ -437,7 +441,7 @@ function openPreview(autoprint){
     invNumber: document.getElementById('invNumberDisplay').textContent,
     invDate: document.getElementById('invDate').value,
     dueDate: document.getElementById('dueDate').value,
-    customer: c ? {name: c.name, gst: gstEnabled ? (c.gst_number||'') : '', address: c.address||'—', mobile: c.mobile||'—'} : {name: '—', gst: '', address: '—', mobile: '—'},
+    customer: c ? {name: c.name, company: c.company_name || '', gst: gstEnabled ? (c.gst_number||'') : '', address: c.address||'—', mobile: c.mobile||'—'} : {name: '—', gst: '', address: '—', mobile: '—'},
     items: realItems,
     subtotal: Math.round(subtotal), discount: Math.round(discount),
     taxType, percent, halfPercent: percent/2, taxAmount: Math.round(taxAmount), roundOff,
@@ -450,12 +454,13 @@ function openPreview(autoprint){
 }
 
 function saveInvoice(){
-  const customerId = document.getElementById('customerSelect').value;
+  const custEntry = KTG.parseCustomerEntry(document.getElementById('customerSelect').value);
+  const customerId = custEntry.id;
   if (!customerId) { KTG.toast('Please select a customer.', 'danger', 'Missing Customer'); return; }
   const realItems = items.filter(it => it.service);
   if (!realItems.length) { KTG.toast('Please add at least one item.', 'danger', 'Missing Items'); return; }
 
-  const c = customers.find(x => String(x.id) === String(customerId));
+  const c = KTG.findCustomerEntry(customers, document.getElementById('customerSelect').value);
   const subtotal = itemsSubtotal(realItems);
   const discount = Math.min(Math.max(+document.getElementById('discountAmount').value || 0, 0), subtotal);
   const taxable = subtotal - discount;
@@ -470,6 +475,7 @@ function saveInvoice(){
     action: editingId ? 'edit' : 'add',
     id: editingId,
     customer_id: customerId,
+    company_name: custEntry.company,
     gst_type: gstEnabled ? 'gst' : 'nongst',
     doc_type: document.getElementById('docTypeLabel').textContent,
     invoice_date: document.getElementById('invDate').value,

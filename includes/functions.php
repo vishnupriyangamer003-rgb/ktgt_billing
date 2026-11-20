@@ -38,3 +38,25 @@ function verify_csrf(): void {
 function is_ajax_request(): bool {
     return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 }
+
+
+/**
+ * Which of a customer's companies a document (renewal / invoice) is for. Accepts the posted
+ * name if it is one of the customer's companies; blank falls back to the primary company.
+ * Returns null when the customer has no company on file. Exits with a JSON error otherwise.
+ */
+function resolve_customer_company(int $customerId, string $posted): ?string {
+    $posted = clean($posted);
+    $primary = db()->prepare('SELECT company_name FROM customers WHERE id = ?');
+    $primary->execute([$customerId]);
+    $primaryName = trim((string)$primary->fetchColumn());
+
+    if ($posted === '') return $primaryName !== '' ? $primaryName : null;
+
+    $chk = db()->prepare('SELECT name FROM customer_companies WHERE customer_id = ? AND LOWER(name) = LOWER(?) LIMIT 1');
+    $chk->execute([$customerId, $posted]);
+    $found = $chk->fetchColumn();
+    if ($found !== false) return $found;
+    if ($primaryName !== '' && mb_strtolower($primaryName) === mb_strtolower($posted)) return $primaryName;
+    json_error('The selected company does not belong to this customer. Please re-select the customer.');
+}

@@ -137,6 +137,22 @@ CREATE TABLE master_renewal_types (
   CONSTRAINT fk_renewal_type_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE master_domain_controls (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by INT UNSIGNED DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  updated_by INT UNSIGNED DEFAULT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_by INT UNSIGNED DEFAULT NULL,
+  status ENUM('active','deleted') NOT NULL DEFAULT 'active',
+  KEY idx_domain_control_status (status),
+  CONSTRAINT fk_domain_control_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_domain_control_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_domain_control_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
 CREATE TABLE master_paid_status_types (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
@@ -186,6 +202,17 @@ CREATE TABLE customers (
   CONSTRAINT fk_customers_deleted_by FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- Full ordered list of a customer's companies; customers.company_name mirrors the first one.
+CREATE TABLE customer_companies (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  customer_id INT UNSIGNED NOT NULL,
+  name VARCHAR(150) NOT NULL,
+  sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  KEY idx_cc_customer (customer_id),
+  KEY idx_cc_name (name),
+  CONSTRAINT fk_cc_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ------------------------------------------------------------
 -- RENEWALS — linked to a real customer; "project" kept as free text since
 -- the Projects module is out of Phase-1 scope
@@ -193,6 +220,7 @@ CREATE TABLE customers (
 CREATE TABLE renewals (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   customer_id INT UNSIGNED NOT NULL,
+  company_name VARCHAR(150) DEFAULT NULL,
   project_name VARCHAR(180) NOT NULL,
   project_type_id INT UNSIGNED DEFAULT NULL,
   server_id INT UNSIGNED DEFAULT NULL,
@@ -201,6 +229,8 @@ CREATE TABLE renewals (
   expiry_date DATE NOT NULL,
   renewal_type_id INT UNSIGNED DEFAULT NULL,
   paid_status_id INT UNSIGNED DEFAULT NULL,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  is_renewed TINYINT(1) NOT NULL DEFAULT 0,
   created_by INT UNSIGNED DEFAULT NULL,
   updated_by INT UNSIGNED DEFAULT NULL,
   is_deleted TINYINT(1) NOT NULL DEFAULT 0,
@@ -234,6 +264,7 @@ CREATE TABLE renewal_invoices (
   invoice_date DATE NOT NULL,
   due_date DATE DEFAULT NULL,
   customer_name VARCHAR(150) DEFAULT NULL,
+  company_name VARCHAR(150) DEFAULT NULL,
   customer_gst VARCHAR(30) DEFAULT NULL,
   customer_address VARCHAR(255) DEFAULT NULL,
   customer_mobile VARCHAR(20) DEFAULT NULL,
@@ -269,6 +300,7 @@ CREATE TABLE invoices (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   invoice_number VARCHAR(50) NOT NULL,
   customer_id INT UNSIGNED NOT NULL,
+  company_name VARCHAR(150) DEFAULT NULL,
   gst_type ENUM('gst','nongst') NOT NULL DEFAULT 'gst',
   doc_type VARCHAR(30) NOT NULL DEFAULT 'TAX INVOICE',
   invoice_date DATE NOT NULL,
@@ -448,6 +480,9 @@ INSERT INTO master_servers (name) VALUES
 
 INSERT INTO master_renewal_types (name) VALUES
 ('Monthly'), ('Quarterly'), ('Half-Yearly'), ('Yearly');
+
+INSERT INTO master_domain_controls (name) VALUES
+('With us (KTG)'), ('Client-side'), ('Client-side (GoDaddy)');
 
 INSERT INTO master_paid_status_types (name) VALUES
 ('Paid'), ('Unpaid'), ('Hold'), ('Overdue');

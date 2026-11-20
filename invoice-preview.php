@@ -50,7 +50,7 @@ function mapInvoiceToPreviewData(inv){
     invNumber: inv.invoice_number,
     invDate: inv.invoice_date,
     dueDate: inv.due_date,
-    customer: { name: inv.customer_name, gst: inv.customer_gst, address: inv.customer_address, mobile: inv.customer_mobile },
+    customer: { name: inv.customer_name, company: inv.company_name || '', gst: inv.customer_gst, address: inv.customer_address, mobile: inv.customer_mobile },
     items: inv.items,
     subtotal: +inv.subtotal, discount: +inv.discount,
     taxType: inv.tax_type, percent: +inv.tax_percent, halfPercent: +inv.tax_percent / 2, taxAmount: +inv.tax_amount, roundOff: +inv.round_off,
@@ -113,7 +113,9 @@ function renderBill(d){
     <div class="row g-4 mb-4">
       <div class="col-md-6">
         <div class="bill-block-label">Bill To</div>
-        <span class="bill-to-name">${d.customer.name}</span>
+        ${d.customer.company && d.customer.company.trim().toLowerCase() !== (d.customer.name || '').trim().toLowerCase()
+          ? `<span class="bill-to-name">${d.customer.company}</span><div class="bill-to-meta">Attn: ${d.customer.name}</div>`
+          : `<span class="bill-to-name">${d.customer.name}</span>`}
         <div class="bill-to-meta">${d.customer.gst ? `GST : ${d.customer.gst}<br>` : ''}${d.customer.address}<br>${d.customer.mobile}</div>
       </div>
       <div class="col-md-6">

@@ -56,19 +56,28 @@ include __DIR__ . '/components/header.php';
 
       <!-- Table View -->
       <div class="section-card fade-in-up" id="tableView">
+        <div class="d-flex align-items-center gap-2 p-3 border-bottom fs-13 text-muted">
+          <span>Show</span>
+          <select class="form-select form-select-sm" id="pageSizeSelect" style="width:auto;">
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="500">500</option>
+          </select>
+          <span>entries</span>
+        </div>
         <div class="table-responsive">
           <table class="table table-modern mb-0">
             <thead>
               <tr>
                 <th><input type="checkbox" class="form-check-input"></th>
-                <th>Customer</th><th>Contact</th><th>Project Type</th><th>GST Number</th><th>Status</th><th>Created</th><th></th>
+                <th>Customer</th><th>Contact</th><th>Project Type</th><th>GST Number</th><th>Status</th><th></th>
               </tr>
             </thead>
             <tbody id="custTableBody"></tbody>
           </table>
         </div>
         <div class="d-flex justify-content-between align-items-center p-3 border-top">
-          <span class="fs-12 text-muted">Showing <b id="custCount">0</b> of <b id="custTotal">0</b> customers</span>
+          <span class="fs-12 text-muted">Showing <b id="custCount">0</b> of <b id="custTotal">0</b> entries</span>
           <nav><ul class="pagination mb-0" id="custPagination"></ul></nav>
         </div>
       </div>
@@ -92,14 +101,18 @@ $pageModals = <<<'HTML'
           <div class="divider-label">Basic Details</div>
           <div class="row g-3">
             <div class="col-md-6"><label class="form-label">Customer Name <span class="req">*</span></label><input class="form-control" id="cmName" placeholder="e.g. Arun Kumar" required></div>
-            <div class="col-md-6"><label class="form-label">Company Name</label><input class="form-control" id="cmCompany" placeholder="e.g. Zen Foods Pvt Ltd"></div>
-            <div class="col-md-6"><label class="form-label">Mobile Number <span class="req">*</span></label><input class="form-control" id="cmMobile" placeholder="+91 98765 43210" required></div>
+                        <div class="col-md-6"><label class="form-label">Mobile Number <span class="req">*</span></label><input class="form-control" id="cmMobile" placeholder="+91 98765 43210" required></div>
             <div class="col-md-6"><label class="form-label">WhatsApp Number</label><input class="form-control" id="cmWhatsapp" placeholder="+91 98765 43210"></div>
             <div class="col-md-6"><label class="form-label">Email Address</label><input type="email" class="form-control" id="cmEmail" placeholder="name@company.com"></div>
             <div class="col-md-6"><label class="form-label">GST Number</label><input class="form-control" id="cmGst" placeholder="33ABCDE1234F1Z5"></div>
             <div class="col-md-6"><label class="form-label">City</label><input class="form-control" id="cmCity" placeholder="e.g. Karur"></div>
             <div class="col-12"><label class="form-label">Address</label><textarea class="form-control" id="cmAddress" rows="2" placeholder="Full billing address"></textarea></div>
           </div>
+
+          <div class="divider-label">Companies</div>
+          <div class="fs-12 text-muted mb-2">A customer can own more than one company. The first company is the primary one shown across the app.</div>
+          <div id="cmCompanyList" class="d-flex flex-column gap-2"></div>
+          <button type="button" class="btn btn-sm btn-soft-primary mt-2" id="cmAddCompanyBtn"><i class="bi bi-plus-lg me-1"></i>Add another company</button>
 
           <div class="divider-label">Project Type</div>
           <div class="row g-3">
@@ -134,6 +147,7 @@ $pageScript = <<<'JS'
 document.addEventListener('DOMContentLoaded', () => setTimeout(init, 150));
 
 let currentPage = 1;
+let pageSize = 50;
 let searchTimer = null;
 
 function init(){
@@ -147,6 +161,11 @@ function init(){
   });
   document.getElementById('filterStatus').addEventListener('change', () => { currentPage = 1; loadCustomers(); });
   document.getElementById('filterType').addEventListener('change', () => { currentPage = 1; loadCustomers(); });
+  document.getElementById('pageSizeSelect').addEventListener('change', () => {
+    pageSize = +document.getElementById('pageSizeSelect').value;
+    currentPage = 1;
+    loadCustomers();
+  });
 
   document.getElementById('viewTableBtn').addEventListener('click', () => toggleView('table'));
   document.getElementById('viewGridBtn').addEventListener('click', () => toggleView('grid'));
@@ -154,6 +173,7 @@ function init(){
   document.getElementById('addCustomerBtn').addEventListener('click', () => openCustomerModal(null));
   document.getElementById('saveCustomerBtn').addEventListener('click', saveCustomer);
   document.getElementById('addCustomerModal').addEventListener('hidden.bs.modal', resetCustomerForm);
+  document.getElementById('cmAddCompanyBtn').addEventListener('click', () => addCompanyRow('', true));
 
   const editId = KTG.qs('edit');
   if (editId) openCustomerModal(+editId);
@@ -193,7 +213,7 @@ function loadCustomers(){
     status: document.getElementById('filterStatus').value,
     project_type_id: document.getElementById('filterType').value,
     page: currentPage,
-    per_page: 10
+    per_page: pageSize
   };
   $.get('ajax/customers.php', params).done((res) => {
     if (!res.success) { KTG.toast(res.message || 'Could not load customers.', 'danger', 'Error'); return; }
@@ -228,16 +248,54 @@ function avatarColor(name){
 function initials(name){ return (name || '?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
 function statusChip(status){ return status === 'active' ? 'active' : status === 'pending' ? 'pending' : 'cancelled'; }
 
+/* The list has one row per company (see ajax/customers.php), so c.company_name here is that
+   row's own company. Company Name (title) + Customer Name (sub) — falls back to just the customer name
+   when no distinct company name is on file. Same pattern used in renewals.php. */
+function companyCustomerLabel(c){
+  const company = (c.company_name || '').trim();
+  const name = (c.name || '').trim();
+  if (!company || company.toLowerCase() === name.toLowerCase()) {
+    return { title: name || '—', sub: '' };
+  }
+  return { title: company, sub: name };
+}
+
+/* ---- Companies repeater inside the Add/Edit modal ---- */
+function addCompanyRow(value, focus){
+  const list = document.getElementById('cmCompanyList');
+  const row = document.createElement('div');
+  row.className = 'd-flex gap-2 cm-company-row';
+  row.innerHTML = `<input class="form-control cm-company-input" placeholder="${list.children.length ? 'Another company name' : 'e.g. Zen Foods Pvt Ltd'}" maxlength="150" value="${KTG.escAttr(value || '')}">
+    <button type="button" class="btn btn-light flex-shrink-0" title="Remove company"><i class="bi bi-trash text-danger"></i></button>`;
+  row.querySelector('button').addEventListener('click', () => {
+    row.remove();
+    if (!list.children.length) addCompanyRow('');
+  });
+  list.appendChild(row);
+  if (focus) row.querySelector('input').focus();
+}
+
+function setCompanyRows(companies){
+  document.getElementById('cmCompanyList').innerHTML = '';
+  (companies && companies.length ? companies : ['']).forEach(c => addCompanyRow(c));
+}
+
+function getCompanyValues(){
+  return Array.from(document.querySelectorAll('#cmCompanyList .cm-company-input')).map(i => i.value.trim()).filter(Boolean);
+}
+
 function renderTable(list){
-  document.getElementById('custTableBody').innerHTML = list.map(c => `
+  document.getElementById('custTableBody').innerHTML = list.map(c => {
+    const cc = companyCustomerLabel(c);
+    return `
     <tr>
       <td><input type="checkbox" class="form-check-input"></td>
       <td>
         <div class="d-flex align-items-center gap-3">
           <div class="avatar-sm" style="background:${avatarColor(c.name)}">${initials(c.name)}</div>
           <div>
-            <a href="customer-details.php?id=${c.id}" class="cell-title d-block">${c.name}</a>
-            <div class="cell-sub">${c.city || ''}</div>
+            <a href="customer-details.php?id=${c.id}" class="cell-title d-block">${cc.title}</a>
+            ${cc.sub ? `<div class="cell-sub">${cc.sub}</div>` : ''}
           </div>
         </div>
       </td>
@@ -245,7 +303,6 @@ function renderTable(list){
       <td>${c.project_type_name ? `<span class="chip chip-inprogress">${c.project_type_name}</span>` : '<span class="text-muted">—</span>'}</td>
       <td class="fs-13">${c.gst_number || '—'}</td>
       <td><span class="chip chip-${statusChip(c.status)}">${c.status}</span></td>
-      <td class="fs-13">${c.created_at ? c.created_at.slice(0,10) : ''}</td>
       <td>
         <div class="dropdown">
           <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
@@ -257,20 +314,23 @@ function renderTable(list){
           </div>
         </div>
       </td>
-    </tr>`).join('') || `<tr><td colspan="8"><div class="empty-state"><div class="es-icon"><i class="bi bi-search"></i></div><h6>No customers found</h6><p>Try adjusting your search or filters.</p></div></td></tr>`;
+    </tr>`;
+  }).join('') || `<tr><td colspan="7"><div class="empty-state"><div class="es-icon"><i class="bi bi-search"></i></div><h6>No customers found</h6><p>Try adjusting your search or filters.</p></div></td></tr>`;
   KTG.makeResponsiveTable(document.getElementById('custTableBody').closest('table'));
 }
 
 function renderGrid(list){
-  document.getElementById('gridView').innerHTML = list.map(c => `
+  document.getElementById('gridView').innerHTML = list.map(c => {
+    const cc = companyCustomerLabel(c);
+    return `
     <div class="col-sm-6 col-lg-4 col-xxl-3">
       <div class="section-card h-100 hover-lift p-3">
         <div class="d-flex align-items-start justify-content-between mb-2">
           <div class="avatar-lg" style="background:${avatarColor(c.name)}">${initials(c.name)}</div>
           <span class="chip chip-${statusChip(c.status)}">${c.status}</span>
         </div>
-        <a href="customer-details.php?id=${c.id}" class="cell-title d-block fs-15 mb-1">${c.name}</a>
-        <div class="cell-sub mb-3">${c.company_name || ''}</div>
+        <a href="customer-details.php?id=${c.id}" class="cell-title d-block fs-15 mb-1">${cc.title}</a>
+        <div class="cell-sub mb-3">${cc.sub}</div>
         <div class="fs-12 text-secondary mb-1"><i class="bi bi-telephone me-2 text-muted"></i>${c.mobile}</div>
         <div class="fs-12 text-secondary mb-1"><i class="bi bi-envelope me-2 text-muted"></i>${c.email || '—'}</div>
         <div class="fs-12 text-secondary mb-3"><i class="bi bi-geo-alt me-2 text-muted"></i>${c.city || '—'}</div>
@@ -281,7 +341,8 @@ function renderGrid(list){
           <button class="btn btn-sm btn-soft-primary flex-fill" onclick="openCustomerModal(${c.id})">Edit</button>
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function openCustomerModal(id){
@@ -293,7 +354,7 @@ function openCustomerModal(id){
       document.getElementById('customerModalTitle').innerHTML = '<i class="bi bi-pencil-square text-primary-KTG me-2"></i>Edit Customer';
       document.getElementById('cmId').value = c.id;
       document.getElementById('cmName').value = c.name || '';
-      document.getElementById('cmCompany').value = c.company_name || '';
+      setCompanyRows(c.companies && c.companies.length ? c.companies : (c.company_name ? [c.company_name] : []));
       document.getElementById('cmMobile').value = c.mobile || '';
       document.getElementById('cmWhatsapp').value = c.whatsapp || '';
       document.getElementById('cmEmail').value = c.email || '';
@@ -314,6 +375,7 @@ function openCustomerModal(id){
 function resetCustomerForm(){
   document.getElementById('addCustomerForm').reset();
   document.getElementById('cmId').value = '';
+  setCompanyRows([]);
   document.getElementById('customerFormError').classList.add('d-none');
 }
 
@@ -324,7 +386,7 @@ function saveCustomer(){
     action: isEdit ? 'edit' : 'add',
     id,
     name: document.getElementById('cmName').value.trim(),
-    company_name: document.getElementById('cmCompany').value.trim(),
+    companies: JSON.stringify(getCompanyValues()),
     mobile: document.getElementById('cmMobile').value.trim(),
     whatsapp: document.getElementById('cmWhatsapp').value.trim(),
     email: document.getElementById('cmEmail').value.trim(),
@@ -356,7 +418,7 @@ function deleteCustomer(e, id, name){
   e.preventDefault();
   KTG.confirmDialog({
     title: 'Delete Customer?',
-    body: `This will remove ${name} from the customer list.`,
+    body: `This will remove ${name} (including all their companies) from the customer list.`,
     confirmText: 'Delete', confirmClass: 'btn-danger',
     onConfirm: () => {
       $.post('ajax/customers.php', { action: 'delete', id }).done((res) => {

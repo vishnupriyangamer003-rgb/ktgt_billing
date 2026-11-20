@@ -69,6 +69,7 @@ function validate_invoice_input(): array {
 
     return [
         'customer_id' => $customerId,
+        'company_name' => resolve_customer_company($customerId, $_POST['company_name'] ?? ''),
         'gst_type' => ($_POST['gst_type'] ?? 'gst') === 'nongst' ? 'nongst' : 'gst',
         'doc_type' => clean($_POST['doc_type'] ?? 'TAX INVOICE'),
         'invoice_date' => $invoiceDate,
@@ -93,7 +94,10 @@ function validate_invoice_input(): array {
 }
 
 if ($action === 'customer_options') {
-    $rows = db()->query("SELECT id, name, company_name, gst_number, address, mobile FROM customers WHERE is_deleted = 0 ORDER BY name ASC")->fetchAll();
+    // One entry per company: a customer with 3 companies yields 3 rows (same id, different company_name).
+    $rows = db()->query("SELECT c.id, c.name, COALESCE(cc.name, c.company_name) AS company_name, c.gst_number, c.address, c.mobile FROM customers c
+        LEFT JOIN customer_companies cc ON cc.customer_id = c.id
+        WHERE c.is_deleted = 0 ORDER BY c.name ASC, cc.sort_order ASC, cc.id ASC")->fetchAll();
     json_success($rows);
 }
 
@@ -155,13 +159,13 @@ if ($action === 'add') {
     $invoiceNumber = compute_next_invoice_number($data['gst_type']);
 
     $stmt = db()->prepare('INSERT INTO invoices
-        (invoice_number, customer_id, gst_type, doc_type, invoice_date, due_date,
+        (invoice_number, customer_id, company_name, gst_type, doc_type, invoice_date, due_date,
          customer_name, customer_gst, customer_address, customer_mobile,
          items_json, subtotal, discount, tax_type, tax_percent, tax_amount,
          round_off, grand_total, advance_paid, balance_due, status, terms, created_by)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     $stmt->execute([
-        $invoiceNumber, $data['customer_id'], $data['gst_type'], $data['doc_type'], $data['invoice_date'], $data['due_date'],
+        $invoiceNumber, $data['customer_id'], $data['company_name'], $data['gst_type'], $data['doc_type'], $data['invoice_date'], $data['due_date'],
         $data['customer_name'], $data['customer_gst'], $data['customer_address'], $data['customer_mobile'],
         $data['items_json'], $data['subtotal'], $data['discount'], $data['tax_type'], $data['tax_percent'], $data['tax_amount'],
         $data['round_off'], $data['grand_total'], $data['advance_paid'], $data['balance_due'], $data['status'], $data['terms'], $userId,
@@ -182,13 +186,13 @@ if ($action === 'edit') {
     $data = validate_invoice_input();
 
     $stmt = db()->prepare('UPDATE invoices SET
-        customer_id=?, gst_type=?, doc_type=?, invoice_date=?, due_date=?,
+        customer_id=?, company_name=?, gst_type=?, doc_type=?, invoice_date=?, due_date=?,
         customer_name=?, customer_gst=?, customer_address=?, customer_mobile=?,
         items_json=?, subtotal=?, discount=?, tax_type=?, tax_percent=?, tax_amount=?,
         round_off=?, grand_total=?, advance_paid=?, balance_due=?, status=?, terms=?, updated_by=?
         WHERE id=?');
     $stmt->execute([
-        $data['customer_id'], $data['gst_type'], $data['doc_type'], $data['invoice_date'], $data['due_date'],
+        $data['customer_id'], $data['company_name'], $data['gst_type'], $data['doc_type'], $data['invoice_date'], $data['due_date'],
         $data['customer_name'], $data['customer_gst'], $data['customer_address'], $data['customer_mobile'],
         $data['items_json'], $data['subtotal'], $data['discount'], $data['tax_type'], $data['tax_percent'], $data['tax_amount'],
         $data['round_off'], $data['grand_total'], $data['advance_paid'], $data['balance_due'], $data['status'], $data['terms'], $userId,

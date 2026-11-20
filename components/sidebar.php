@@ -27,6 +27,7 @@
       <a href="servers.php" class="side-sublink">Server Name</a>
       <a href="renewal-types.php" class="side-sublink">Renewal Type</a>
       <a href="paid-status.php" class="side-sublink">Paid Status Type</a>
+      <a href="domain-controls.php" class="side-sublink">Domain Control</a>
     </div>
 
     <div class="nav-section-label">Sales</div>

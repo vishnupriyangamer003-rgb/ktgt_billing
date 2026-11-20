@@ -477,7 +477,13 @@ const KTG = (() => {
 
       const renderOptions = (filterText) => {
         const q = filterText.trim().toLowerCase();
-        const matches = q ? choices.filter(c => c.label.toLowerCase().includes(q)) : choices;
+        // A query containing digits also matches with spaces/dashes/brackets ignored, so a
+        // mobile typed as 9876543210 still finds a stored "98765 43210" / "+91 98765-43210".
+        const qCompact = /\d/.test(q) ? q.replace(/[\s\-()]/g, '') : '';
+        const matches = q ? choices.filter(c => {
+          const l = c.label.toLowerCase();
+          return l.includes(q) || (qCompact && l.replace(/[\s\-()]/g, '').includes(qCompact));
+        }) : choices;
         optionsWrap.innerHTML = '';
         if (!matches.length) {
           const empty = document.createElement('div');
@@ -741,6 +747,22 @@ const KTG = (() => {
     return '₹' + Number(n).toLocaleString('en-IN');
   }
   /* Safe to drop into a double-quoted HTML attribute, e.g. value="${KTG.escAttr(x)}". */
+  /* Customer dropdowns list one entry per company ("Vishnu - Vichu", "Vishnu - Service"…).
+     An entry's option value is "<customerId>|<company>" so each is unique inside a <select>. */
+  function customerEntryValue(c) { return c.id + '|' + (c.company_name || ''); }
+  function parseCustomerEntry(v) {
+    v = String(v || '');
+    const i = v.indexOf('|');
+    return i < 0 ? { id: v, company: '' } : { id: v.slice(0, i), company: v.slice(i + 1) };
+  }
+  function findCustomerEntry(list, v) { return list.find(c => customerEntryValue(c) === String(v)) || null; }
+  /* Option value for a saved (customerId, company) pair; falls back to that customer's first entry. */
+  function customerEntryFor(list, id, company) {
+    const same = list.filter(c => String(c.id) === String(id));
+    const m = same.find(c => (c.company_name || '').toLowerCase() === (company || '').toLowerCase()) || same[0];
+    return m ? customerEntryValue(m) : '';
+  }
+
   function escAttr(s) {
     return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
@@ -1109,7 +1131,7 @@ const KTG = (() => {
     return html;
   }
 
-  return { DATA, qs, Auth, Masters, CompanyProfile, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, escAttr, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable, fixDropdownOverflow, nextInvoiceNumber, dueDays, relativeDaysLabel, dateRangeFor, companyLetterheadHtml };
+  return { DATA, qs, Auth, Masters, CompanyProfile, Notifications, Ledger, loadLayout, renderNotifDropdown, toast, showSkeleton, money, moneyShort, escAttr, customerEntryValue, parseCustomerEntry, findCustomerEntry, customerEntryFor, exportCsv, Charts, confirmDialog, initTooltips, makeResponsiveTable, fixDropdownOverflow, nextInvoiceNumber, dueDays, relativeDaysLabel, dateRangeFor, companyLetterheadHtml };
 })();
 
 document.addEventListener('DOMContentLoaded', () => { KTG.loadLayout(); });

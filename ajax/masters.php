@@ -1,7 +1,8 @@
 <?php
 /**
- * Generic AJAX handler for all 7 Masters screens (project-types.php, services.php,
- * taxes.php, followup-types.php, servers.php, renewal-types.php, paid-status.php).
+ * Generic AJAX handler for all 8 Masters screens (project-types.php, services.php,
+ * taxes.php, followup-types.php, servers.php, renewal-types.php, paid-status.php,
+ * domain-controls.php).
  * One reusable endpoint instead of seven near-identical files — the "master" key
  * (whitelisted below) selects which table is touched.
  *
@@ -21,6 +22,7 @@ const MASTER_CONFIG = [
     'servers'           => ['table' => 'master_servers',            'fields' => ['name']],
     'renewal_types'     => ['table' => 'master_renewal_types',     'fields' => ['name']],
     'paid_status_types' => ['table' => 'master_paid_status_types', 'fields' => ['name']],
+    'domain_controls'   => ['table' => 'master_domain_controls',   'fields' => ['name']],
 ];
 
 $masterKey = $_REQUEST['master'] ?? '';

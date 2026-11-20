@@ -241,7 +241,7 @@ function renderList(){
     return `
     <tr>
       <td><a href="invoice-create.php?id=${inv.id}" class="cell-title">${inv.invoice_number}</a></td>
-      <td class="fw-600 text-info">${inv.customer_name}</td>
+      <td class="fw-600 text-info">${inv.company_name && inv.company_name.toLowerCase() !== (inv.customer_name || '').toLowerCase() ? `${inv.company_name}<div class="cell-sub fw-400">${inv.customer_name}</div>` : inv.customer_name}</td>
       <td class="fs-13">${inv.invoice_date}</td>
       <td class="fs-13">${dueDaysLabel(inv)}</td>
       <td class="fw-700 text-primary-KTG">${KTG.money(+inv.grand_total)}</td>

@@ -18,6 +18,7 @@ include __DIR__ . '/components/header.php';
         <li class="nav-item"><a class="nav-link" href="servers.php">Server Name</a></li>
         <li class="nav-item"><a class="nav-link" href="renewal-types.php">Renewal Type</a></li>
         <li class="nav-item"><a class="nav-link" href="paid-status.php">Paid Status Type</a></li>
+        <li class="nav-item"><a class="nav-link" href="domain-controls.php">Domain Control</a></li>
       </ul>
 
       <div class="row justify-content-center">

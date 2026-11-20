@@ -26,6 +26,7 @@ include __DIR__ . '/components/header.php';
               <div class="avatar-lg mx-auto mb-3" id="cdAvatar" style="width:84px;height:84px;font-size:26px;">?</div>
               <h5 class="mb-0" id="cdName">&nbsp;</h5>
               <div class="text-muted fs-13 mb-2" id="cdSub">&nbsp;</div>
+              <div class="d-flex flex-wrap justify-content-center gap-1 mb-2" id="cdCompanies"></div>
               <span class="chip mb-3" id="cdStatusChip"><i class="bi"></i>&nbsp;</span>
               <div class="d-flex justify-content-center gap-2 mb-3">
                 <a href="#" id="cdCallLink" class="btn btn-icon btn-light"><i class="bi bi-telephone-fill"></i></a>
@@ -131,6 +132,8 @@ function renderCustomer(c){
 
   document.getElementById('cdName').textContent = c.name;
   document.getElementById('cdSub').textContent = [c.contact_person, c.city].filter(Boolean).join(' · ') || '—';
+
+  document.getElementById('cdCompanies').innerHTML = (c.companies || []).map(n => `<span class="chip chip-inprogress"><i class="bi bi-building me-1"></i>${KTG.escAttr(n)}</span>`).join('');
 
   const chip = document.getElementById('cdStatusChip');
   chip.className = 'chip chip-' + statusChip(c.status) + ' mb-3';

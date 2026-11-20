@@ -1,17 +1,30 @@
 <?php
 /**
- * AJAX handler for the Renewals module: list (date range / customer / paid
- * status filters), stats, customer_options (for the modal + filter dropdowns),
- * view, add, edit, soft-delete.
+ * AJAX handler for the Renewals module: list (date range / customer / renewal
+ * status / active status filters), customer_options (for the modal + filter dropdowns),
+ * view, add, edit, soft-delete, set_renewed, set_paid_status, set_status.
+ * The dashboard stat cards are computed client-side from the list response rather
+ * than a separate stats action, so they always track the currently applied filters.
  */
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/renewal_status.php';
 require_login();
 header('Content-Type: application/json');
 
 $action = $_REQUEST['action'] ?? 'list';
 $userId = current_user()['id'] ?? null;
 
-const RENEWAL_SELECT = "SELECT r.*, c.name AS customer_name, pt.name AS project_type_name,
+/**
+ * The company a renewal belongs to. It is the company saved on the renewal — but only while that
+ * is still one of the customer's companies. If the customer's companies were edited/split/renamed
+ * afterwards (so the saved name no longer exists), the renewal falls back to the customer's first
+ * company instead of becoming unreachable from every dropdown entry and filter.
+ */
+const RENEWAL_COMPANY_EXPR = "CASE WHEN r.company_name IS NOT NULL AND r.company_name <> ''
+      AND EXISTS (SELECT 1 FROM customer_companies rcc WHERE rcc.customer_id = r.customer_id AND rcc.name = r.company_name)
+    THEN r.company_name ELSE c.company_name END";
+
+const RENEWAL_SELECT = "SELECT r.*, c.name AS customer_name, " . RENEWAL_COMPANY_EXPR . " AS company_name, pt.name AS project_type_name,
     sv.name AS server_name, rt.name AS renewal_type_name, ps.name AS paid_status_name,
     ri.id AS invoice_id, ri.invoice_number AS invoice_number, ri.grand_total AS invoice_grand_total
     FROM renewals r
@@ -39,6 +52,8 @@ function validate_renewal_input(): array {
     $custChk->execute([$customerId]);
     if (!$custChk->fetch()) json_error('Please select a valid customer.');
 
+    $companyName = resolve_customer_company($customerId, $_POST['company_name'] ?? '');
+
     $projectName = clean($_POST['project_name'] ?? '');
     if ($projectName === '') json_error('Project name is required.');
 
@@ -47,8 +62,11 @@ function validate_renewal_input(): array {
         json_error('Please choose a valid expiry date.');
     }
 
+    $status = in_array($_POST['status'] ?? '', ['active', 'inactive']) ? $_POST['status'] : 'active';
+
     return [
         'customer_id' => $customerId,
+        'company_name' => $companyName,
         'project_name' => $projectName,
         'project_type_id' => optional_master_id('project_type_id', 'master_project_types'),
         'server_id' => optional_master_id('server_id', 'master_servers'),
@@ -56,27 +74,44 @@ function validate_renewal_input(): array {
         'live_link' => clean($_POST['live_link'] ?? ''),
         'expiry_date' => $expiryDate,
         'renewal_type_id' => optional_master_id('renewal_type_id', 'master_renewal_types'),
-        'paid_status_id' => optional_master_id('paid_status_id', 'master_paid_status_types'),
+        'paid_status_id' => optional_master_id('paid_status_id', 'master_paid_status_types') ?? renewal_unpaid_status_id(),
+        'status' => $status,
     ];
 }
 
 if ($action === 'customer_options') {
-    $rows = db()->query("SELECT id, name, company_name, project_type_id FROM customers WHERE is_deleted = 0 ORDER BY name ASC")->fetchAll();
+    // One entry per company: a customer with 3 companies yields 3 rows (same id, different company_name).
+    $rows = db()->query("SELECT c.id, c.name, COALESCE(cc.name, c.company_name) AS company_name, c.mobile, c.project_type_id FROM customers c
+        LEFT JOIN customer_companies cc ON cc.customer_id = c.id
+        WHERE c.is_deleted = 0 ORDER BY c.name ASC, cc.sort_order ASC, cc.id ASC")->fetchAll();
     json_success($rows);
 }
 
 if ($action === 'list') {
+    renewal_sync_paid_status_for_expiry();
     $from = clean($_GET['from'] ?? '');
     $to = clean($_GET['to'] ?? '');
     $customerId = (int)($_GET['customer_id'] ?? 0);
+    $company = clean($_GET['company'] ?? '');
+    $serverId = (int)($_GET['server_id'] ?? 0);
     $paidStatusId = (int)($_GET['paid_status_id'] ?? 0);
+    $renewalStatus = $_GET['renewal_status'] ?? '';
+    $activeStatus = clean($_GET['status'] ?? '');
 
     $where = ['r.is_deleted = 0'];
     $params = [];
     if ($from !== '') { $where[] = 'r.expiry_date >= ?'; $params[] = $from; }
     if ($to !== '') { $where[] = 'r.expiry_date <= ?'; $params[] = $to; }
     if ($customerId > 0) { $where[] = 'r.customer_id = ?'; $params[] = $customerId; }
+    if ($customerId > 0 && $company !== '') { $where[] = '(' . RENEWAL_COMPANY_EXPR . ') = ?'; $params[] = $company; }
+    if ($serverId > 0) { $where[] = 'r.server_id = ?'; $params[] = $serverId; }
     if ($paidStatusId > 0) { $where[] = 'r.paid_status_id = ?'; $params[] = $paidStatusId; }
+    if (in_array($activeStatus, ['active', 'inactive'])) { $where[] = 'r.status = ?'; $params[] = $activeStatus; }
+    // Kept for the dashboard cards, which still compute Expiring This Month / Pending
+    // Renewal / Renewal Done from expiry_date — the list's own Status filter now maps
+    // to paid_status_id above (Paid/Unpaid/Hold/Overdue), not this.
+    if ($renewalStatus === 'done') { $where[] = 'r.expiry_date >= CURDATE()'; }
+    if ($renewalStatus === 'pending') { $where[] = 'r.expiry_date < CURDATE()'; }
     $whereSql = implode(' AND ', $where);
 
     $stmt = db()->prepare(RENEWAL_SELECT . " WHERE {$whereSql} ORDER BY r.expiry_date ASC");
@@ -84,31 +119,8 @@ if ($action === 'list') {
     json_success($stmt->fetchAll());
 }
 
-if ($action === 'stats') {
-    $monthStart = date('Y-m-01');
-    $monthEnd = date('Y-m-t');
-    $today = date('Y-m-d');
-
-    $total = (int)db()->query("SELECT COUNT(*) FROM renewals WHERE is_deleted = 0")->fetchColumn();
-
-    $thisMonth = db()->prepare("SELECT COUNT(*) FROM renewals WHERE is_deleted = 0 AND expiry_date >= ? AND expiry_date <= ? AND expiry_date >= ?");
-    $thisMonth->execute([$monthStart, $monthEnd, $today]);
-
-    $expired = db()->prepare("SELECT COUNT(*) FROM renewals WHERE is_deleted = 0 AND expiry_date < ?");
-    $expired->execute([$today]);
-
-    $paid = db()->query("SELECT COUNT(*) FROM renewals r JOIN master_paid_status_types ps ON ps.id = r.paid_status_id
-        WHERE r.is_deleted = 0 AND LOWER(ps.name) = 'paid'")->fetchColumn();
-
-    json_success([
-        'total' => $total,
-        'this_month' => (int)$thisMonth->fetchColumn(),
-        'expired' => (int)$expired->fetchColumn(),
-        'paid' => (int)$paid,
-    ]);
-}
-
 if ($action === 'view') {
+    renewal_sync_paid_status_for_expiry();
     $id = (int)($_GET['id'] ?? 0);
     if ($id <= 0) json_error('Invalid record.');
     $stmt = db()->prepare(RENEWAL_SELECT . ' WHERE r.id = ? AND r.is_deleted = 0');
@@ -123,12 +135,12 @@ if ($action === 'add') {
     $data = validate_renewal_input();
 
     $stmt = db()->prepare('INSERT INTO renewals
-        (customer_id, project_name, project_type_id, server_id, domain_control, live_link, expiry_date, renewal_type_id, paid_status_id, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        (customer_id, company_name, project_name, project_type_id, server_id, domain_control, live_link, expiry_date, renewal_type_id, paid_status_id, status, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
-        $data['customer_id'], $data['project_name'], $data['project_type_id'], $data['server_id'],
+        $data['customer_id'], $data['company_name'], $data['project_name'], $data['project_type_id'], $data['server_id'],
         $data['domain_control'], $data['live_link'], $data['expiry_date'], $data['renewal_type_id'],
-        $data['paid_status_id'], $userId,
+        $data['paid_status_id'], $data['status'], $userId,
     ]);
 
     json_success(['id' => (int)db()->lastInsertId()], 'Renewal entry added successfully.');
@@ -139,22 +151,28 @@ if ($action === 'edit') {
     $id = (int)($_POST['id'] ?? 0);
     if ($id <= 0) json_error('Invalid record.');
 
-    $existing = db()->prepare('SELECT id FROM renewals WHERE id = ? AND is_deleted = 0');
+    $existing = db()->prepare('SELECT paid_status_id, expiry_date, renewal_type_id FROM renewals WHERE id = ? AND is_deleted = 0');
     $existing->execute([$id]);
-    if (!$existing->fetch()) json_error('This renewal entry no longer exists.', 404);
+    $existingRow = $existing->fetch();
+    if (!$existingRow) json_error('This renewal entry no longer exists.', 404);
 
     $data = validate_renewal_input();
 
+    // Unpaid -> Paid: expiry date auto-extends by renewal interval (e.g. 1 month for monthly, 1 year for yearly)
+    // from its current value, overriding whatever expiry_date was submitted alongside the status change.
+    $extendedExpiry = renewal_extend_expiry_if_newly_paid($existingRow['paid_status_id'], $existingRow['expiry_date'], $data['paid_status_id'], $data['renewal_type_id'] ?? $existingRow['renewal_type_id']);
+    if ($extendedExpiry !== null) $data['expiry_date'] = $extendedExpiry;
+
     $stmt = db()->prepare('UPDATE renewals SET
-        customer_id=?, project_name=?, project_type_id=?, server_id=?, domain_control=?, live_link=?,
-        expiry_date=?, renewal_type_id=?, paid_status_id=?, updated_by=? WHERE id=?');
+        customer_id=?, company_name=?, project_name=?, project_type_id=?, server_id=?, domain_control=?, live_link=?,
+        expiry_date=?, renewal_type_id=?, paid_status_id=?, status=?, updated_by=? WHERE id=?');
     $stmt->execute([
-        $data['customer_id'], $data['project_name'], $data['project_type_id'], $data['server_id'],
+        $data['customer_id'], $data['company_name'], $data['project_name'], $data['project_type_id'], $data['server_id'],
         $data['domain_control'], $data['live_link'], $data['expiry_date'], $data['renewal_type_id'],
-        $data['paid_status_id'], $userId, $id,
+        $data['paid_status_id'], $data['status'], $userId, $id,
     ]);
 
-    json_success([], 'Renewal entry updated successfully.');
+    json_success(['expiry_date' => $data['expiry_date'], 'expiry_extended' => $extendedExpiry !== null], 'Renewal entry updated successfully.');
 }
 
 if ($action === 'delete') {
@@ -164,6 +182,53 @@ if ($action === 'delete') {
     $stmt = db()->prepare('UPDATE renewals SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id = ? AND is_deleted = 0');
     $stmt->execute([$userId, $id]);
     json_success([], 'Renewal entry deleted successfully.');
+}
+
+/* Manually-set Active/Inactive status — opened by clicking the Status chip in the list */
+if ($action === 'set_status') {
+    verify_csrf();
+    $id = (int)($_POST['id'] ?? 0);
+    if ($id <= 0) json_error('Invalid record.');
+    $status = ($_POST['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
+    $stmt = db()->prepare('UPDATE renewals SET status = ?, updated_by = ? WHERE id = ? AND is_deleted = 0');
+    $stmt->execute([$status, $userId, $id]);
+    json_success(['status' => $status], 'Status updated successfully.');
+}
+
+/* Manually-set Renewed/Not Renewed flag — deliberately separate from the computed Renewal
+ * Status (expiry_date based). This one is not auto-recomputed; it stays whatever it was
+ * last set to until the user changes it again via the list's Renewed popup. */
+if ($action === 'set_renewed') {
+    verify_csrf();
+    $id = (int)($_POST['id'] ?? 0);
+    if ($id <= 0) json_error('Invalid record.');
+    $isRenewed = ($_POST['is_renewed'] ?? '0') === '1' ? 1 : 0;
+    $stmt = db()->prepare('UPDATE renewals SET is_renewed = ?, updated_by = ? WHERE id = ? AND is_deleted = 0');
+    $stmt->execute([$isRenewed, $userId, $id]);
+    json_success(['is_renewed' => $isRenewed], 'Renewed status updated.');
+}
+
+/* Quick popup update for Paid Status, same pattern as set_renewed — doesn't require
+ * resubmitting the whole renewal record just to change this one field. Always resolves to
+ * a real status (defaults to Unpaid) since a renewal should never be left with no paid status.
+ * Unpaid -> Paid here auto-extends the expiry date based on the renewal type interval. */
+if ($action === 'set_paid_status') {
+    verify_csrf();
+    $id = (int)($_POST['id'] ?? 0);
+    if ($id <= 0) json_error('Invalid record.');
+
+    $existing = db()->prepare('SELECT paid_status_id, expiry_date, renewal_type_id FROM renewals WHERE id = ? AND is_deleted = 0');
+    $existing->execute([$id]);
+    $existingRow = $existing->fetch();
+    if (!$existingRow) json_error('This renewal entry no longer exists.', 404);
+
+    $paidStatusId = optional_master_id('paid_status_id', 'master_paid_status_types') ?? renewal_unpaid_status_id();
+    $extendedExpiry = renewal_extend_expiry_if_newly_paid($existingRow['paid_status_id'], $existingRow['expiry_date'], $paidStatusId, $existingRow['renewal_type_id']);
+    $expiryDate = $extendedExpiry ?? $existingRow['expiry_date'];
+
+    $stmt = db()->prepare('UPDATE renewals SET paid_status_id = ?, expiry_date = ?, updated_by = ? WHERE id = ? AND is_deleted = 0');
+    $stmt->execute([$paidStatusId, $expiryDate, $userId, $id]);
+    json_success(['paid_status_id' => $paidStatusId, 'expiry_date' => $expiryDate, 'expiry_extended' => $extendedExpiry !== null], 'Paid status updated.');
 }
 
 /** Sanitizes the posted items array into a clean list of {service, desc, qty, rate}. */
@@ -212,6 +277,7 @@ function validate_invoice_input(): array {
         'invoice_date' => $invoiceDate,
         'due_date' => $dueDate !== '' ? $dueDate : null,
         'customer_name' => clean($_POST['customer_name'] ?? ''),
+        'company_name' => clean($_POST['company_name'] ?? '') ?: null,
         'customer_gst' => clean($_POST['customer_gst'] ?? ''),
         'customer_address' => clean($_POST['customer_address'] ?? ''),
         'customer_mobile' => clean($_POST['customer_mobile'] ?? ''),
@@ -252,13 +318,13 @@ if ($action === 'invoice_save') {
     if ($existingRow) {
         $stmt = db()->prepare('UPDATE renewal_invoices SET
             invoice_number=?, gst_type=?, doc_type=?, invoice_date=?, due_date=?,
-            customer_name=?, customer_gst=?, customer_address=?, customer_mobile=?,
+            customer_name=?, company_name=?, customer_gst=?, customer_address=?, customer_mobile=?,
             items_json=?, subtotal=?, discount=?, tax_type=?, tax_percent=?, tax_amount=?,
             round_off=?, grand_total=?, advance_paid=?, balance_due=?, terms=?, updated_by=?
             WHERE renewal_id=?');
         $stmt->execute([
             $data['invoice_number'], $data['gst_type'], $data['doc_type'], $data['invoice_date'], $data['due_date'],
-            $data['customer_name'], $data['customer_gst'], $data['customer_address'], $data['customer_mobile'],
+            $data['customer_name'], $data['company_name'], $data['customer_gst'], $data['customer_address'], $data['customer_mobile'],
             $data['items_json'], $data['subtotal'], $data['discount'], $data['tax_type'], $data['tax_percent'], $data['tax_amount'],
             $data['round_off'], $data['grand_total'], $data['advance_paid'], $data['balance_due'], $data['terms'], $userId,
             $data['renewal_id'],
@@ -268,13 +334,13 @@ if ($action === 'invoice_save') {
     } else {
         $stmt = db()->prepare('INSERT INTO renewal_invoices
             (renewal_id, invoice_number, gst_type, doc_type, invoice_date, due_date,
-             customer_name, customer_gst, customer_address, customer_mobile,
+             customer_name, company_name, customer_gst, customer_address, customer_mobile,
              items_json, subtotal, discount, tax_type, tax_percent, tax_amount,
              round_off, grand_total, advance_paid, balance_due, terms, created_by)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
         $stmt->execute([
             $data['renewal_id'], $data['invoice_number'], $data['gst_type'], $data['doc_type'], $data['invoice_date'], $data['due_date'],
-            $data['customer_name'], $data['customer_gst'], $data['customer_address'], $data['customer_mobile'],
+            $data['customer_name'], $data['company_name'], $data['customer_gst'], $data['customer_address'], $data['customer_mobile'],
             $data['items_json'], $data['subtotal'], $data['discount'], $data['tax_type'], $data['tax_percent'], $data['tax_amount'],
             $data['round_off'], $data['grand_total'], $data['advance_paid'], $data['balance_due'], $data['terms'], $userId,
         ]);
